@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#160d20" />
+  <title>Till Rage Do Us Part — Character + Kitchen Drama Update</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <canvas id="game-canvas" aria-label="Till Rage Do Us Part 3D game"></canvas>
+
+    <div id="hud" class="hidden">
+      <div class="hud-top glass">
+        <div class="objective-copy">
+          <div class="eyebrow">COMPATIBILITY INSPECTION <span id="crisis-count">1/3</span></div>
+          <div id="objective">Escape the cursed rug with the sofa.</div>
+        </div>
+        <div class="hud-actions">
+          <button id="skip-level-btn" class="mini-btn skip-btn" title="Skip this level and continue">⏭ Skip Level</button>
+          <button id="restart-btn" class="mini-btn" title="Restart level">↻ Restart</button>
+        </div>
+      </div>
+
+      <div id="crisis-track" class="crisis-track glass">
+        <div class="crisis-step active" data-step="0"><b>1</b><span>Cursed Rug</span></div>
+        <div class="crisis-step" data-step="1"><b>2</b><span>Petty Door</span></div>
+        <div class="crisis-step" data-step="2"><b>3</b><span>Cozy Corner</span></div>
+      </div>
+
+      <div id="kitchen-status" class="kitchen-status hidden">
+        <div class="kitchen-paper-pin">♥</div>
+        <div class="kitchen-board-title">TONIGHT'S DINNER <span>🍝</span></div>
+        <div id="kitchen-phase" class="kitchen-phase">Find the ingredients</div>
+        <div class="kitchen-row recipe-row"><b>RECIPE</b><div class="recipe-chips"><span id="recipe-pasta">🍝 PASTA</span><span id="recipe-tomato">🍅 TOMATO</span><span id="recipe-onion">🧅 ONION</span></div></div>
+        <div class="kitchen-row cook-row"><b>COOK</b><div class="cook-meter"><div id="cook-fill"></div><i class="safe-zone"></i></div><span id="cook-percent">0%</span></div>
+        <div class="kitchen-row"><b>SERVE</b><span id="served-count">0/2 plates</span></div>
+      </div>
+
+      <div id="kitchen-guide" class="kitchen-guide hidden">
+        <strong>🍳 YOUR KITCHEN ROLES</strong>
+        <div class="guide-role chef"><b id="guide-chef-name">YOU</b><span>CHEF — pot + stove + stirring</span></div>
+        <div class="guide-role runner"><b id="guide-runner-name">HER</b><span>RUNNER — ingredients + emergencies</span></div>
+        <small>Follow your own task card at the bottom. Only the object you need will glow.</small>
+      </div>
+
+      <div id="action-prompts" class="action-prompts hidden">
+        <div id="p1-action-card" class="action-card p1-action hidden"><kbd>E</kbd><div><small id="p1-action-name">YOU · CHEF</small><span id="p1-action-text">Stay near the stove</span></div></div>
+        <div id="p2-action-card" class="action-card p2-action hidden"><kbd>ENTER</kbd><div><small id="p2-action-name">HER · RUNNER</small><span id="p2-action-text">Bring the glowing ingredient</span></div></div>
+      </div>
+
+      <div class="patience-wrap">
+        <div class="patience-card glass">
+          <div class="meter-label"><span id="p1-label">YOU</span><span id="p1-state">Suspiciously calm</span></div>
+          <div class="meter"><div id="p1-meter" class="meter-fill"></div></div>
+        </div>
+        <div class="patience-card glass">
+          <div class="meter-label"><span id="p2-label">HER</span><span id="p2-state">Suspiciously calm</span></div>
+          <div class="meter"><div id="p2-meter" class="meter-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="fluffles" class="fluffles glass">
+        <div class="fluffles-face">ʕ•ᴥ•ʔ</div>
+        <div>
+          <div class="eyebrow">DR. FLUFFLES · LANDLORD / THERAPIST / PROBLEM</div>
+          <div id="fluffles-line">Communication is important. Unfortunately, so is entertainment.</div>
+        </div>
+      </div>
+
+      <div id="grab-hint" class="grab-hint hidden">Get close to a gold sofa handle and press your grab key</div>
+      <div class="controls-pill glass">YOU: WASD + E &nbsp;•&nbsp; HER: Arrow Keys + Enter &nbsp;•&nbsp; R: Restart</div>
+    </div>
+
+    <section id="online-screen" class="overlay active">
+      <div class="online-card glass-heavy">
+        <div class="tiny-heart">♥</div>
+        <div class="version-chip">ONLINE CO-OP v1.0 · TWO CITIES, ONE PROBLEM</div>
+        <h1>Till Rage<br><span>Do Us Part</span></h1>
+        <p class="tagline">Create one private room, send the code to your girlfriend, and play the same cursed apartment from two different laptops.</p>
+
+        <div id="connection-state" class="connection-state connecting">● Connecting to game server…</div>
+
+        <div id="lobby-entry" class="lobby-entry">
+          <label class="online-name-label"><span>Your name</span><input id="online-name" maxlength="14" value="You" autocomplete="off" /></label>
+          <div class="online-split">
+            <button id="create-room-btn" class="primary-btn">CREATE PRIVATE ROOM ♥</button>
+            <div class="join-box">
+              <input id="room-code-input" maxlength="5" placeholder="ROOM CODE" autocomplete="off" />
+              <button id="join-room-btn" class="secondary-btn">JOIN ROOM</button>
+            </div>
+          </div>
+          <button id="local-mode-btn" class="text-btn">Play local on one keyboard instead</button>
+        </div>
+
+        <div id="room-lobby" class="room-lobby hidden">
+          <div class="room-code-wrap">
+            <span>PRIVATE ROOM</span>
+            <strong id="room-code-display">-----</strong>
+            <button id="copy-room-btn" class="mini-btn">COPY CODE</button>
+          </div>
+          <div class="online-players">
+            <div class="online-player host"><span>PLAYER 1 · HOST</span><b id="online-p1">Waiting…</b><i id="online-p1-state">●</i></div>
+            <div class="online-player guest"><span>PLAYER 2 · PARTNER</span><b id="online-p2">Waiting for partner…</b><i id="online-p2-state">○</i></div>
+          </div>
+          <p id="room-message" class="room-message">Send the room code to your partner.</p>
+
+          <div id="host-start-controls" class="host-start-controls hidden">
+            <span>START FROM</span>
+            <div class="route-buttons">
+              <button class="net-route-btn active" data-route="full">♥ Full Episode</button>
+              <button class="net-route-btn" data-route="kitchen">🍳 Kitchen</button>
+              <button class="net-route-btn" data-route="quiz">💬 Questions</button>
+            </div>
+            <button id="online-start-btn" class="primary-btn" disabled>WAITING FOR PARTNER…</button>
+          </div>
+          <div id="guest-waiting" class="guest-waiting hidden">Your partner is choosing where to start. Keep this tab open ♥</div>
+          <button id="leave-room-btn" class="text-btn">Leave room</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="start-screen" class="overlay">
+      <div class="start-card glass-heavy">
+        <div class="tiny-heart">♥</div>
+        <div class="version-chip">WEB BUILD v0.9 · CHARACTER + KITCHEN DRAMA</div>
+        <h1>Till Rage<br><span>Do Us Part</span></h1>
+        <p class="tagline">A cursed apartment, one suspicious lease, and a relationship inspection conducted by a teddy bear with no visible qualifications.</p>
+
+        <div class="name-grid">
+          <label>
+            <span>Your name</span>
+            <input id="p1-name" maxlength="14" value="You" autocomplete="off" />
+          </label>
+          <label>
+            <span>Her name</span>
+            <input id="p2-name" maxlength="14" value="Her" autocomplete="off" />
+          </label>
+        </div>
+
+        <div class="mission-box">
+          <strong>Episode 1: The Lease From Hell</strong>
+          <span>Survive Moving Day From Hell, then cook Dinner Date From Hell. Now the kitchen has clearer character looks, a tiny sunflower on her head, and urgency drama — if tomato or onion arrive too late, dinner starts panicking.</span>
+        </div>
+
+        <div class="route-select">
+          <span>WHERE DO YOU WANT TO START?</span>
+          <div class="route-buttons">
+            <button class="route-btn active" data-route="full">♥ Full Episode</button>
+            <button class="route-btn" data-route="kitchen">🍳 Start at Kitchen</button>
+            <button class="route-btn" data-route="quiz">💬 Start at Questions</button>
+          </div>
+        </div>
+
+        <button id="play-btn" class="primary-btn">SIGN THE TERRIBLE LEASE ♥</button>
+        <p class="micro">Best played together on one keyboard. In the kitchen: the CHEF watches the pot, the RUNNER brings the next glowing ingredient, and some ingredients are now urgently needed before dinner starts burning.</p>
+      </div>
+    </section>
+
+    <section id="story-screen" class="overlay">
+      <div class="story-card glass-heavy">
+        <div id="story-kicker" class="version-chip">11:47 PM</div>
+        <div id="story-speaker" class="story-speaker">Narrator</div>
+        <h2 id="story-title">The cheapest apartment in the city.</h2>
+        <p id="story-text"></p>
+        <div class="story-progress" id="story-progress">1 / 3</div>
+        <div class="story-actions">
+          <button id="story-next" class="primary-btn">CONTINUE</button>
+          <button id="story-skip-level" class="secondary-btn hidden">SKIP THIS LEVEL ⏭</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="quiz-screen" class="overlay">
+      <div class="quiz-card glass-heavy">
+        <div class="version-chip">TRIAL THREE · DO YOU ACTUALLY LISTEN?</div>
+        <div class="quiz-topline"><span id="quiz-progress">QUESTION 1 / 4</span><span id="understanding-live">UNDERSTANDING 0 / 8</span></div>
+        <h2 id="quiz-prompt">Question</h2>
+        <p id="quiz-instruction" class="quiz-instruction">Choose your own answer privately.</p>
+
+        <div id="quiz-options" class="quiz-options"></div>
+
+        <div class="private-controls">
+          <div class="private-player p1-private">
+            <strong id="quiz-p1-name">YOU</strong>
+            <span>W = 1 · A = 2 · S = 3 · D = 4</span>
+            <b id="quiz-p1-status">CHOOSING…</b>
+          </div>
+          <div class="private-player p2-private">
+            <strong id="quiz-p2-name">HER</strong>
+            <span>↑ = 1 · ← = 2 · ↓ = 3 · → = 4</span>
+            <b id="quiz-p2-status">CHOOSING…</b>
+          </div>
+        </div>
+
+        <div id="quiz-result" class="quiz-result hidden"></div>
+        <button id="quiz-next" class="primary-btn hidden">NEXT QUESTION</button>
+        <button id="quiz-skip" class="secondary-btn">SKIP QUESTIONS ⏭</button>
+        <p class="micro">Selections stay hidden until both of you lock in. Looking at each other's hands remains morally suspicious.</p>
+      </div>
+    </section>
+
+    <section id="win-screen" class="overlay">
+      <div class="win-card glass-heavy">
+        <div class="result-badge">CLAUSE 13 · PASSED WITH CONCERNS</div>
+        <h2>You may keep the apartment.</h2>
+        <p id="win-summary">Somehow, love survives.</p>
+        <div class="score-grid four">
+          <div><span id="time-score">00:00</span><small>TOTAL CO-OP TIME</small></div>
+          <div><span id="patience-score">100%</span><small>REMAINING DIGNITY</small></div>
+          <div><span id="chaos-score">0</span><small>CHAOS</small></div>
+          <div><span id="understanding-score">0/8</span><small>UNDERSTANDING</small></div>
+        </div>
+        <div id="relationship-grade" class="relationship-grade">Compatibility grade: suspiciously healthy</div>
+        <div class="next-episode">NEXT: <strong>Pack For Vacation</strong> — one suitcase, too many opinions, and several items nobody remembers packing.</div>
+        <button id="again-btn" class="primary-btn">REPLAY THE INSPECTION ↻</button>
+      </div>
+    </section>
+
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
