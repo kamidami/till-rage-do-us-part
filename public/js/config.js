@@ -4,7 +4,7 @@
 // =============================================================
 window.GAME_CONFIG = {
   title: "Till Rage Do Us Part",
-  build: "v1.0 Online Couple Multiplayer",
+  build: "v1.1 Interactive Kitchen Multiplayer",
 
   playerSpeed: 4.45,
   playerRadius: 0.46,

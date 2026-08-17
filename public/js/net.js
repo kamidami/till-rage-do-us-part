@@ -140,7 +140,7 @@
 
   function configureClientControls() {
     const pill = document.querySelector('.controls-pill');
-    if (pill) pill.textContent = 'YOU: WASD + E  •  PARTNER: ONLINE  •  HOST controls story / skip / restart';
+    if (pill) pill.textContent = 'MOVE: WASD / ARROWS  •  E: interact  •  HER: F = cute spank  •  PARTNER ONLINE';
     const p1kbd = document.querySelector('#p1-action-card kbd');
     const p2kbd = document.querySelector('#p2-action-card kbd');
     const p1q = document.querySelector('.p1-private span');

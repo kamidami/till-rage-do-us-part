@@ -233,3 +233,39 @@ body.kitchen-mode #p2-label.role-runner { color:#bce9ff; }
    ONLINE CO-OP v1.0
    ============================================================ */
 .online-card{width:min(760px,92vw);max-height:94vh;overflow:auto;padding:34px;border-radius:28px;text-align:center}.online-card h1{margin:6px 0 12px}.connection-state{margin:18px auto;padding:9px 14px;border-radius:999px;width:max-content;max-width:100%;font-weight:800;font-size:.86rem}.connection-state.connecting{background:rgba(255,202,111,.14);color:#ffd58b}.connection-state.online{background:rgba(111,220,143,.14);color:#9ef0b5}.connection-state.offline{background:rgba(255,94,98,.15);color:#ff9da0}.lobby-entry{display:grid;gap:16px;margin-top:18px}.online-name-label{display:grid;gap:7px;text-align:left;font-weight:800}.online-name-label input,.join-box input{border:1px solid rgba(255,255,255,.16);background:rgba(15,10,23,.66);color:#fff;border-radius:13px;padding:13px 15px;font:inherit;outline:none}.online-split{display:grid;grid-template-columns:1fr 1fr;gap:12px}.join-box{display:grid;grid-template-columns:1fr auto;gap:8px}.join-box input{text-transform:uppercase;letter-spacing:.2em;font-weight:900;min-width:0}.text-btn{border:0;background:transparent;color:#d9bfd8;text-decoration:underline;cursor:pointer;padding:8px}.room-lobby{display:grid;gap:18px;margin-top:18px}.room-code-wrap{display:grid;gap:6px;justify-items:center;padding:18px;border-radius:18px;background:rgba(255,255,255,.055)}.room-code-wrap span{font-size:.72rem;letter-spacing:.16em;color:#d9bfd8;font-weight:900}.room-code-wrap strong{font-size:2.35rem;letter-spacing:.22em;color:#ffd579}.online-players{display:grid;grid-template-columns:1fr 1fr;gap:12px}.online-player{position:relative;text-align:left;padding:15px;border-radius:17px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.09)}.online-player span{display:block;font-size:.67rem;letter-spacing:.12em;color:#cdb5ce}.online-player b{display:block;margin-top:5px}.online-player i{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-style:normal;color:#6fdc8f}.room-message,.guest-waiting{color:#d9bfd8}.host-start-controls{display:grid;gap:12px;padding-top:4px}.host-start-controls>span{font-size:.7rem;letter-spacing:.16em;font-weight:900;color:#cdb5ce}.net-route-btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);color:#f8edf7;border-radius:13px;padding:10px 12px;font-weight:800;cursor:pointer}.net-route-btn.active{border-color:#ff9eb7;background:rgba(255,111,145,.17);box-shadow:0 0 0 2px rgba(255,111,145,.08) inset}.online-card button:disabled{opacity:.5;cursor:not-allowed}.network-badge{position:fixed;right:14px;bottom:14px;z-index:30;padding:7px 10px;border-radius:999px;background:rgba(10,8,14,.72);backdrop-filter:blur(10px);font-size:.72rem;font-weight:900;letter-spacing:.08em;color:#b7f1c7;border:1px solid rgba(255,255,255,.1);pointer-events:none}.network-badge.warn{color:#ffd58b}.network-badge.bad{color:#ff9da0}@media(max-width:720px){.online-split,.online-players{grid-template-columns:1fr}.join-box{grid-template-columns:1fr}.online-card{padding:24px 18px}.room-code-wrap strong{font-size:1.9rem}}
+
+
+/* =============================================================
+   v1.1 — INTERACTIVE KITCHEN CLOSE-UPS + PLAYFUL SPANK
+   ============================================================= */
+.kitchen-task-screen {
+  position:absolute; z-index:14; left:50%; bottom:142px; transform:translateX(-50%);
+  width:min(520px,calc(100% - 34px)); pointer-events:none;
+}
+.kitchen-task-screen.active-player { bottom:132px; }
+.kitchen-task-screen.spectator { left:18px; bottom:138px; transform:none; width:min(350px,calc(100% - 36px)); opacity:.92; }
+.task-closeup { border-radius:24px; padding:16px 18px 14px; text-align:center; border-color:rgba(255,221,164,.22); }
+.task-kicker { font-size:8px; letter-spacing:.16em; font-weight:1000; color:#ffd58a; }
+.task-closeup h3 { margin:5px 0 4px; font-size:20px; letter-spacing:-.025em; }
+.task-closeup p { margin:0 0 11px; font-size:10px; color:#ddd0e0; }
+.task-visual { display:grid; gap:10px; align-items:center; }
+.task-emoji { font-size:38px; filter:drop-shadow(0 8px 12px rgba(0,0,0,.25)); }
+.task-track { position:relative; height:17px; border-radius:999px; background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.12); overflow:hidden; }
+.task-track i { position:absolute; left:29%; width:42%; top:0; bottom:0; background:rgba(141,227,199,.28); border-left:1px solid rgba(141,227,199,.62); border-right:1px solid rgba(141,227,199,.62); }
+.task-track b { position:absolute; top:2px; bottom:2px; width:8px; margin-left:-4px; border-radius:999px; background:#fff6b0; box-shadow:0 0 12px rgba(255,246,176,.75); left:0%; transition:left .045s linear; }
+.task-progress { margin-top:11px; height:9px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; }
+#task-progress-fill { height:100%; width:0; border-radius:inherit; background:linear-gradient(90deg,#ff9fba,#ffd06f,#8de3c7); transition:width .1s linear; }
+.task-bottom { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:8px; font-size:10px; }
+.task-bottom strong { padding:6px 10px; border-radius:9px; background:#fff4e3; color:#34222e; box-shadow:0 3px 0 rgba(0,0,0,.14); }
+#task-observer-note { display:block; margin-top:7px; font-size:8px; opacity:.52; }
+.kitchen-task-screen.spectator .task-closeup { padding:11px 13px; }
+.kitchen-task-screen.spectator .task-emoji { font-size:26px; }
+.kitchen-task-screen.spectator .task-closeup h3 { font-size:15px; }
+.kitchen-task-screen.spectator .task-bottom strong { display:none; }
+.spank-pop { position:absolute; z-index:16; pointer-events:none; font-weight:1000; color:#ffd3df; text-shadow:0 3px 12px #5b2038; animation:spank-pop .7s ease-out forwards; }
+@keyframes spank-pop { from { opacity:1; transform:translate(-50%,-20%) scale(.7) rotate(-8deg); } to { opacity:0; transform:translate(-50%,-170%) scale(1.3) rotate(8deg); } }
+@media (max-width:740px) {
+  .kitchen-task-screen, .kitchen-task-screen.active-player { bottom:172px; }
+  .kitchen-task-screen.spectator { left:10px; bottom:174px; width:240px; }
+  .task-closeup { padding:12px 13px 11px; }
+}

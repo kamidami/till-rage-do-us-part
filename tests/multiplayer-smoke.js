@@ -92,6 +92,16 @@ async function openSSE(url) {
     const input = await inputPromise;
     if (input.code !== 'KeyW' || input.down !== true) throw new Error('Input relay mismatch');
 
+    const arrowPromise = hostSSE.next('player:input');
+    await post(`/api/rooms/${created.code}/input`, { token: joined.token, code: 'ArrowUp', down: true });
+    const arrow = await arrowPromise;
+    if (arrow.code !== 'ArrowUp' || arrow.down !== true) throw new Error('Arrow input relay mismatch');
+
+    const spankPromise = hostSSE.next('player:input');
+    await post(`/api/rooms/${created.code}/input`, { token: joined.token, code: 'KeyF', down: true });
+    const spank = await spankPromise;
+    if (spank.code !== 'KeyF' || spank.down !== true) throw new Error('F input relay mismatch');
+
     const snapPromise = guestSSE.next('game:snapshot');
     await post(`/api/rooms/${created.code}/snapshot`, { token: created.token, snapshot: { tick: 7, players: [{ p: [1, 0, 2] }] } });
     const snap = await snapPromise;

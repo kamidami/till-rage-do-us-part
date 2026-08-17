@@ -179,7 +179,7 @@ async function api(req, res, url) {
     }
     if (action === 'input') {
       if (who.role !== 'guest' || !room.started) return json(res, 403, { ok: false });
-      const allowed = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyE']);
+      const allowed = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'KeyE', 'KeyF']);
       if (allowed.has(body.code)) emitTo(room, 'host', 'player:input', { code: body.code, down: !!body.down });
       return noContent(res);
     }

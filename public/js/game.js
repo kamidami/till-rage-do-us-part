@@ -30,6 +30,7 @@
   let startRoute = 'full';
   const skippedLevels = new Set();
   let kitchenChefIndex = 0;
+  let lastSpankAt = -9999;
 
   const keys = Object.create(null);
   const players = [];
@@ -56,6 +57,13 @@
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function damp(current, target, speed, dt) { return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-speed * dt)); }
   function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function bindingDown(binding) {
+    if (Array.isArray(binding)) return binding.some(code => !!keys[code]);
+    return !!keys[binding];
+  }
+  function bindingHas(binding, code) {
+    return Array.isArray(binding) ? binding.includes(code) : binding === code;
+  }
   function angleDamp(current, target, speed, dt) {
     let d = target - current;
     d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -147,8 +155,16 @@
     }
 
     update(dt) {
-      const x = (keys[this.controls.right] ? 1 : 0) - (keys[this.controls.left] ? 1 : 0);
-      const z = (keys[this.controls.back] ? 1 : 0) - (keys[this.controls.forward] ? 1 : 0);
+      const mini = currentLevel === 'dinner' ? world.dinner?.mini : null;
+      if (mini?.active && mini.playerIndex === players.indexOf(this)) {
+        this.velocity.set(0, 0, 0);
+        if (this.heldItem) updateHeldDinnerItem(this);
+        updatePlayerFace(this);
+        return;
+      }
+
+      const x = (bindingDown(this.controls.right) ? 1 : 0) - (bindingDown(this.controls.left) ? 1 : 0);
+      const z = (bindingDown(this.controls.back) ? 1 : 0) - (bindingDown(this.controls.forward) ? 1 : 0);
       const dir = new THREE.Vector3(x, 0, z);
       if (dir.lengthSq() > 1) dir.normalize();
 
@@ -826,6 +842,61 @@
     return mesh(geo, mat(color, 0.65), true, true);
   }
 
+  function showSpankPop(position) {
+    const el = document.createElement('div');
+    el.className = 'spank-pop';
+    el.textContent = 'BONK ♥';
+    const projected = position.clone().project(camera);
+    el.style.left = `${(projected.x * 0.5 + 0.5) * innerWidth}px`;
+    el.style.top = `${(-projected.y * 0.5 + 0.5) * innerHeight}px`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 760);
+  }
+
+  function animateCuteSpankVisual(giverIndex = 1, targetIndex = 0) {
+    const giver = players[giverIndex], target = players[targetIndex];
+    if (!giver || !target) return;
+    const arm = giver.group.userData.arms?.[1] || giver.group.userData.arms?.[0];
+    if (arm) {
+      const start = arm.rotation.z;
+      arm.rotation.z = -1.15;
+      setTimeout(() => { arm.rotation.z = 0.72; }, 95);
+      setTimeout(() => { arm.rotation.z = start; }, 240);
+    }
+    target.group.userData.body.rotation.x = -0.16;
+    setTimeout(() => { if (target.group?.userData?.body) target.group.userData.body.rotation.x = 0; }, 220);
+    const mid = giver.group.position.clone().add(target.group.position).multiplyScalar(0.5);
+    mid.y = 1.1;
+    spawnBonkParticles(mid, 8);
+    showSpankPop(mid);
+  }
+
+  function tryCuteSpank(giver) {
+    if (!giver || players.indexOf(giver) !== 1 || !players[0] || !gameStarted || won || quizActive) return;
+    const now = performance.now();
+    if (now - lastSpankAt < 1250) return;
+    const target = players[0];
+    const dist = distanceXZ(giver.group.position, target.group.position);
+    if (dist > 1.35) {
+      toast(`${giver.name}: get closer if you want to use the emergency girlfriend BONK.`);
+      return;
+    }
+    lastSpankAt = now;
+    const dx = target.group.position.x - giver.group.position.x;
+    const dz = target.group.position.z - giver.group.position.z;
+    const len = Math.max(0.001, Math.hypot(dx, dz));
+    target.velocity.x += (dx / len) * 1.15;
+    target.velocity.z += (dz / len) * 1.15;
+    giver.patience = clamp(giver.patience + 4.5, 0, 100);
+    target.patience = clamp(target.patience + 1.0, 0, 100);
+    animateCuteSpankVisual(1, 0);
+    toast(`${giver.name} used F: emergency girlfriend BONK. Anger safely converted into comedy.`);
+    setFluffles('A controlled release of girlfriend frustration has been observed. No paperwork will be filed.');
+    beep(210, 0.035, 0.035);
+    setTimeout(() => beep(720, 0.055, 0.025), 65);
+    if (window.NET?.online && window.NET.isHost) window.NET.sendFx('spank', { giverIndex: 1, targetIndex: 0 });
+  }
+
   function makeSofa() {
     const g = new THREE.Group();
     const purple = mat(C.colors.sofa, 0.82);
@@ -1220,7 +1291,7 @@
     $('story-kicker').textContent = 'LEVEL TWO · 11:54 PM · KITCHEN';
     $('story-speaker').textContent = 'Dr. Fluffles';
     $('story-title').textContent = 'Dinner Date From Hell';
-    $('story-text').textContent = `${chef.name} is the CHEF: stay near the pot, add delivered ingredients, stir, and control the stove. ${runner.name} is the RUNNER: fetch ONE glowing ingredient at a time, place it on the gold prep tray, and solve sink/fire emergencies. Also: once pasta is in, the next ingredient is urgent — delay it and dinner starts burning.`;
+    $('story-text').textContent = `${chef.name} is the CHEF: stay near the pot, add delivered ingredients, stir, and control the stove. ${runner.name} is the RUNNER: fetch one ingredient at a time. Vegetables must be washed at the sink, chopped on the board, then delivered to the prep tray. ${chef.name} is the CHEF: use close-up pouring/tipping tasks to get ingredients into the pot, then cook and stir. Once pasta is in, the next ingredient becomes urgent.`;
     $('story-progress').textContent = 'LEVEL 2 / 2 · CLEAR ROLES';
     $('story-next').textContent = 'ENTER THE KITCHEN ♥';
     $('story-skip-level').classList.remove('hidden');
@@ -1324,10 +1395,10 @@
       sinkLeak: false, sinkTriggered: false, sinkFixed: false, leakAge: 0, waterLevel: 0,
       servedCount: 0, platesSpawned: false, catTimer: 13.5, catCalm: 0,
       chefIndex: kitchenChefIndex, runnerIndex: kitchenChefIndex === 0 ? 1 : 0,
-      ingredientStep: 0, handoffItem: null,
+      ingredientStep: 0, handoffItem: null, mini: null,
       urgentName: null, urgentRemaining: 0, urgentMax: 0, urgentStage: 0, urgentWarned: false,
       potPos: new THREE.Vector3(-0.7, 0, -3.55), knobPos: new THREE.Vector3(0.55, 0, -3.48),
-      handoffPos: new THREE.Vector3(-2.05, 0, -3.55),
+      handoffPos: new THREE.Vector3(-2.05, 0, -3.55), choppingPos: new THREE.Vector3(-5.65, 0, -3.55),
       sinkPos: new THREE.Vector3(4.15, 0, -3.52), tablePos: new THREE.Vector3(5.65, 0, 2.45),
       spillRect: { minX: 1.65, maxX: 7.6, minZ: -3.45, maxZ: 0.95 },
       initialPatience: players.map(p => p.patience), beacons: {}, decor: [], guideShown: false
@@ -1443,7 +1514,10 @@
 
     // Ingredient placement now makes spatial sense.
     // Pasta on pantry shelf, fresh veg on chopping board, bad ideas elsewhere.
-    const board=mesh(new THREE.BoxGeometry(2.25,.07,.72),mat(0xc58d5d,.8)); board.position.set(-5.65,1.18,-4.12); scene.add(board);
+    const board=mesh(new THREE.BoxGeometry(2.25,.07,.72),mat(0xc58d5d,.8)); board.position.set(-5.65,1.18,-4.12); scene.add(board); d.choppingBoard=board;
+    const knifeBlade=mesh(new THREE.BoxGeometry(.7,.045,.15),mat(0xcfd5d7,.24,.7)); knifeBlade.position.set(-6.25,1.29,-4.1); knifeBlade.rotation.y=.18; scene.add(knifeBlade);
+    const knifeHandle=mesh(new THREE.BoxGeometry(.28,.09,.18),mat(0x5a3d35,.75)); knifeHandle.position.set(-6.72,1.29,-4.18); knifeHandle.rotation.y=.18; scene.add(knifeHandle);
+    const prepBowl=mesh(new THREE.CylinderGeometry(.34,.26,.16,20),mat(0xf3e4d5,.52),true,true); prepBowl.position.set(-4.82,1.3,-4.12); scene.add(prepBowl);
 
     // Shared prep tray: Runner delivers here, Chef takes from here. This creates a clear hand-off.
     const prepTray=mesh(new THREE.BoxGeometry(1.1,.07,.7),mat(0xf1c979,.58,.08),false,true);
@@ -1471,6 +1545,7 @@
     // Context beacons are hidden until genuinely useful.
     d.beacons.pot = makeKitchenBeacon('CHEF: POT', new THREE.Vector3(d.potPos.x,2.72,-4.02), 0xf3c86d);
     d.beacons.handoff = makeKitchenBeacon('RUNNER: PREP TRAY', new THREE.Vector3(d.handoffPos.x,2.32,-4.02), 0xffd06f);
+    d.beacons.chop = makeKitchenBeacon('RUNNER: CHOP HERE', new THREE.Vector3(d.choppingPos.x,2.38,-4.0), 0xffa76f);
     d.beacons.sink = makeKitchenBeacon('RUNNER: TAP', new THREE.Vector3(d.sinkPos.x,2.55,-4.0), 0x6fc7ff);
     d.beacons.extinguisher = makeKitchenBeacon('EXTINGUISHER', new THREE.Vector3(8.55,2.1,4.4), 0xff6b6b);
     d.beacons.table = makeKitchenBeacon('SERVE HERE', new THREE.Vector3(d.tablePos.x,2.35,d.tablePos.z), 0xff9eb4);
@@ -1596,7 +1671,7 @@
     const haloMat=new THREE.MeshStandardMaterial({color:required?0xffd46f:kind==='extinguisher'?0xff6e6e:0xc7a4ba,transparent:true,opacity:required?.48:.2,emissive:required?0xffbd4a:0x6f4659,emissiveIntensity:.7,roughness:.7});
     const halo=mesh(new THREE.TorusGeometry(.38,.035,8,24),haloMat,false,false); halo.rotation.x=Math.PI/2; halo.position.y=-.03; halo.visible=required || kind==='extinguisher'; group.add(halo);
     group.position.copy(pos); scene.add(group);
-    const item={name,label,group,kind,required,added:false,delivered:false,heldBy:null,served:false,stolenCount:0,tag,halo,baseY:pos.y};
+    const item={name,label,group,kind,required,added:false,delivered:false,heldBy:null,served:false,stolenCount:0,tag,halo,baseY:pos.y,homePos:pos.clone(),washed:name==='pasta',prepared:name==='pasta'};
     group.userData.item=item; world.dinner.items.push(item); return item;
   }
 
@@ -1684,6 +1759,16 @@
     const role = kitchenRole(player);
     const active = activeDinnerIngredient(d);
     const held = player.heldItem;
+    const idx = players.indexOf(player);
+
+    if (d.mini?.active) {
+      if (d.mini.playerIndex === idx) {
+        if (d.mini.type === 'wash') return `Wash ${d.mini.itemName.toUpperCase()} — hold your interaction key.`;
+        if (d.mini.type === 'chop') return `Chop ${d.mini.itemName.toUpperCase()} — tap when the marker crosses green.`;
+        if (d.mini.type === 'pour') return `Tip ${d.mini.itemName.toUpperCase()} into the pot — hold steady.`;
+      }
+      return `${players[d.mini.playerIndex]?.name || 'Partner'} is doing a close-up prep task. Keep the kitchen under control.`;
+    }
 
     if (d.mealReady) {
       if (held && held.kind === 'plate') return 'Carry your plate to the dining table.';
@@ -1709,18 +1794,22 @@
       const timer = d.urgentRemaining > 0 ? ` (${Math.ceil(d.urgentRemaining)}s)` : '';
       const burn = d.urgentStage === 1 ? ` ${urgencySubject(active)} is burning!` : '';
       if (role === 'runner') {
-        if (held && held.name === active) return `Bring ${label} to the gold PREP TRAY${timer}.`;
-        if (item && item.delivered) return `Wait — Chef is adding ${label} to the pot.${burn}`;
-        return `Find the glowing ${label} and bring it to the PREP TRAY${timer}.${burn}`;
+        if (held && held.name === active) {
+          if (active !== 'pasta' && !held.washed) return `Take ${label} to the SINK and wash it${timer}.`;
+          if (active !== 'pasta' && !held.prepared) return `Take ${label} back to the CHOPPING BOARD and chop it${timer}.`;
+          return `Bring prepared ${label} to the gold PREP TRAY${timer}.`;
+        }
+        if (item && item.delivered) return `Wait — Chef is putting ${label} into the pot.${burn}`;
+        return `Pick up the glowing ${label}${timer}.${burn}`;
       }
-      if (held && held.name === active) return `Add ${label} to the pot now.${burn}`;
-      if (item && item.delivered) return `Pick up ${label} from the PREP TRAY, then add it to the pot.${burn}`;
-      return `Stay by the pot. Runner is bringing ${label}${timer}.${burn}`;
+      if (held && held.name === active) return `${active === 'pasta' ? 'Pour' : 'Tip'} ${label} into the pot now.${burn}`;
+      if (item && item.delivered) return `Pick up ${label} from the PREP TRAY, then put it into the pot.${burn}`;
+      return `Stay by the pot. Runner is preparing ${label}${timer}.${burn}`;
     }
 
     if (!d.stoveOn) {
-      if (role === 'chef') return 'All ingredients are in. TURN ON THE STOVE.';
-      return 'Ingredients complete. Stay ready for kitchen trouble.';
+      if (role === 'chef') return 'Everything is prepped. TURN ON THE STOVE.';
+      return 'Prep complete. Stay ready for kitchen trouble.';
     }
 
     if (role === 'chef') {
@@ -1729,13 +1818,15 @@
     }
     return 'Watch for trouble while Chef cooks.';
   }
-
   function nearestDinnerAction(player) {
     const d = world.dinner;
     if (!d) return null;
     const pos = player.group.position;
     const role = kitchenRole(player);
     const active = activeDinnerIngredient(d);
+    const idx = players.indexOf(player);
+
+    if (d.mini?.active && d.mini.playerIndex === idx) return null;
 
     if (player.heldItem) {
       const held = player.heldItem;
@@ -1743,14 +1834,24 @@
         return { type: 'extinguish', text: 'EXTINGUISH THE FIRE' };
       }
       if (held.kind === 'ingredient') {
-        if (role === 'runner' && held.name === active && !held.delivered && distanceXZ(pos, d.handoffPos) < 1.55) {
-          return { type: 'handoff', text: `PLACE ${held.label} ON PREP TRAY` };
+        if (role === 'runner' && held.name === active && !held.delivered) {
+          if (held.name !== 'pasta' && !held.washed && distanceXZ(pos, d.sinkPos) < 1.95) {
+            return { type: 'wash', text: `WASH ${held.label}` };
+          }
+          if (held.name !== 'pasta' && held.washed && !held.prepared && distanceXZ(pos, d.choppingPos) < 1.9) {
+            return { type: 'chop', text: `CHOP ${held.label}` };
+          }
+          if ((held.name === 'pasta' || held.prepared) && distanceXZ(pos, d.handoffPos) < 1.55) {
+            return { type: 'handoff', text: `PLACE ${held.label} ON PREP TRAY` };
+          }
         }
         if (role === 'chef' && held.name === active && held.delivered && distanceXZ(pos, d.potPos) < 1.82) {
-          return { type: 'add', text: `ADD ${held.label} TO POT` };
+          return { type: 'add', text: `${held.name === 'pasta' ? 'POUR' : 'TIP'} ${held.label} INTO POT` };
         }
       }
+      if (held.kind === 'ingredient') return null;
       if (held.kind === 'plate' && distanceXZ(pos, d.tablePos) < 2.55) return { type: 'serve', text: `SERVE ${held.label}` };
+      if (held.kind === 'plate' || held.kind === 'extinguisher') return null;
       return { type: 'drop', text: `DROP ${held.label}` };
     }
 
@@ -1783,7 +1884,6 @@
     if (!active && !d.sinkLeak && !d.fire && !d.mealReady && other && distanceXZ(pos, other.group.position) < 1.0) return { type: 'hug', text: 'EMERGENCY HUG — BOTH PRESS INTERACT' };
     return null;
   }
-
   function dinnerInteract(player) {
     const d = world.dinner;
     if (!d) return;
@@ -1799,76 +1899,202 @@
 
     if (player.heldItem) {
       const item = player.heldItem;
-      if (action.type === 'extinguish') {
-        extinguishDinnerFire(player, item);
-      } else if (action.type === 'handoff') {
-        deliverIngredientToTray(player, item);
-      } else if (action.type === 'add') {
-        addIngredientToPot(player, item);
-      } else if (action.type === 'serve') {
-        serveDinnerPlate(player, item);
-      } else {
-        dropDinnerItem(player, false);
-      }
+      if (action.type === 'extinguish') extinguishDinnerFire(player, item);
+      else if (action.type === 'wash') startKitchenMini('wash', player, item);
+      else if (action.type === 'chop') startKitchenMini('chop', player, item);
+      else if (action.type === 'handoff') deliverIngredientToTray(player, item);
+      else if (action.type === 'add') addIngredientToPot(player, item);
+      else if (action.type === 'serve') serveDinnerPlate(player, item);
+      else dropDinnerItem(player, false);
       return;
     }
 
-    if (action.type === 'pickup') {
-      holdDinnerItem(player, action.item);
-      return;
-    }
+    if (action.type === 'pickup') { holdDinnerItem(player, action.item); return; }
     if (action.type === 'sink') {
-      d.sinkLeak = false;
-      d.sinkFixed = true;
-      d.leakAge = 0;
-      setDinnerStage(2);
-      chaos += 1;
+      d.sinkLeak = false; d.sinkFixed = true; d.leakAge = 0; setDinnerStage(2); chaos += 1;
       player.patience = clamp(player.patience + 4, 0, 100);
       toast(`${player.name} turned off the tap. The kitchen reluctantly stops becoming a pool.`);
-      setFluffles('Plumbing solved by direct communication. Unexpectedly efficient.');
-      beep(620, 0.06, 0.035);
-      return;
+      setFluffles('Plumbing solved by direct communication. Unexpectedly efficient.'); beep(620, 0.06, 0.035); return;
     }
     if (action.type === 'stir') {
-      d.lastStirAt = elapsed;
-      d.potGroup.rotation.y += 0.35;
+      d.lastStirAt = elapsed; d.potGroup.rotation.y += 0.35;
       spawnBonkParticles(new THREE.Vector3(d.potPos.x, 1.4, -4.18), 2);
-      toast(`${player.name} stirred the pot. For once, literally.`);
-      beep(480, 0.045, 0.025);
-      return;
+      toast(`${player.name} stirred the pot. For once, literally.`); beep(480, 0.045, 0.025); return;
     }
-    if (action.type === 'stove') {
-      toggleDinnerStove(player);
-      return;
-    }
+    if (action.type === 'stove') { toggleDinnerStove(player); return; }
     if (action.type === 'petcat') {
-      d.catCalm = 7.0;
-      player.patience = clamp(player.patience + 2.5, 0, 100);
+      d.catCalm = 7.0; player.patience = clamp(player.patience + 2.5, 0, 100);
       toast(`${player.name} negotiated a seven-second peace treaty with Kevin.`);
-      setFluffles('The cat has accepted affection as a temporary bribe. Corruption works.');
-      beep(760, 0.05, 0.025);
-      return;
+      setFluffles('The cat has accepted affection as a temporary bribe. Corruption works.'); beep(760, 0.05, 0.025); return;
     }
     if (action.type === 'hug') {
-      const other = players.find(p => p !== player);
-      const now = performance.now();
-      player.lastDinnerInteract = now;
+      const other = players.find(p => p !== player); const now = performance.now(); player.lastDinnerInteract = now;
       if (other && now - other.lastDinnerInteract < 850) {
         for (const p of players) p.patience = clamp(p.patience + 9, 0, 100);
         spawnBonkParticles(player.group.position.clone().add(other.group.position).multiplyScalar(0.5), 10);
         toast('EMERGENCY HUG SUCCESSFUL. DINNER CONTINUES TO EXIST UNSUPERVISED.');
-        setFluffles('Affection detected during active kitchen risk. Reckless. Effective.');
-        beep(760, 0.08, 0.035);
-        setTimeout(() => beep(920, 0.09, 0.03), 80);
+        setFluffles('Affection detected during active kitchen risk. Reckless. Effective.'); beep(760, 0.08, 0.035); setTimeout(() => beep(920, 0.09, 0.03), 80);
+      } else toast(`${player.name} is requesting an emergency hug. The other suspect must also press interact.`);
+    }
+  }
+  function kitchenMiniKeyLabel(playerIndex) {
+    if (window.NET?.online && window.NET?.started) return 'E';
+    return playerIndex === 1 ? 'ENTER' : 'E';
+  }
+
+  function startKitchenMini(type, player, item) {
+    const d = world.dinner;
+    if (!d || d.mini?.active || !item) return;
+    const playerIndex = players.indexOf(player);
+    d.mini = {
+      active: true,
+      type,
+      playerIndex,
+      itemName: item.name,
+      progress: 0,
+      marker: 0.12,
+      dir: 1,
+      holding: false,
+      hits: 0,
+      misses: 0
+    };
+    player.velocity.set(0, 0, 0);
+    const verb = type === 'wash' ? 'WASH' : type === 'chop' ? 'CHOP' : item.name === 'pasta' ? 'POUR' : 'TIP';
+    toast(`${player.name}: ${verb} ${item.label}. CLOSE-UP TASK STARTED.`);
+    if (type === 'wash') setFluffles('Clean vegetables. A shocking display of standards. Hold the interaction key until the sink has done something useful.');
+    if (type === 'chop') setFluffles('Knife timing exercise. Tap when the marker is green. Fingers are not an ingredient.');
+    if (type === 'pour') setFluffles('Steady hands. Tip the ingredient into the pot without decorating the floor.');
+    updateKitchenMiniUI();
+  }
+
+  function handleKitchenMiniInput(playerIndex, down) {
+    const d = world.dinner;
+    const mini = d?.mini;
+    if (!mini?.active || mini.playerIndex !== playerIndex) return;
+    if (mini.type === 'chop') {
+      if (!down) return;
+      const good = mini.marker >= 0.27 && mini.marker <= 0.73;
+      mini.progress = clamp(mini.progress + (good ? 22 : 10), 0, 100);
+      if (good) {
+        mini.hits += 1;
+        beep(650 + mini.hits * 35, 0.035, 0.022);
       } else {
-        toast(`${player.name} is requesting an emergency hug. The other suspect must also press interact.`);
+        mini.misses += 1;
+        players[playerIndex].patience = clamp(players[playerIndex].patience - 1.2, 0, 100);
+        chaos += 0.5;
+        beep(170, 0.04, 0.02);
+      }
+      if (mini.progress >= 100) finishKitchenMini();
+    } else {
+      mini.holding = !!down;
+    }
+    updateKitchenMiniUI();
+  }
+
+  function updateKitchenMini(dt) {
+    const d = world.dinner;
+    const mini = d?.mini;
+    if (!mini?.active) { updateKitchenMiniUI(); return; }
+
+    const speed = mini.type === 'chop' ? 1.55 : 1.15;
+    mini.marker += mini.dir * dt * speed;
+    if (mini.marker >= 1) { mini.marker = 1; mini.dir = -1; }
+    if (mini.marker <= 0) { mini.marker = 0; mini.dir = 1; }
+
+    if (mini.type === 'wash' && mini.holding) {
+      mini.progress = clamp(mini.progress + dt * 43, 0, 100);
+      if (Math.floor(mini.progress) % 18 === 0) spawnBonkParticles(new THREE.Vector3(d.sinkPos.x, 1.3, -4.1), 1);
+    }
+    if (mini.type === 'pour' && mini.holding) {
+      const steady = mini.marker >= 0.2 && mini.marker <= 0.8;
+      mini.progress = clamp(mini.progress + dt * (steady ? 37 : 22), 0, 100);
+      if (!steady) {
+        chaos += dt * 0.35;
+        players[mini.playerIndex].patience = clamp(players[mini.playerIndex].patience - dt * 0.14, 0, 100);
       }
     }
+    if (mini.progress >= 100) finishKitchenMini();
+    updateKitchenMiniUI();
+  }
+
+  function finishKitchenMini() {
+    const d = world.dinner;
+    const mini = d?.mini;
+    if (!mini?.active) return;
+    const player = players[mini.playerIndex];
+    const item = dinnerItemByName(mini.itemName);
+    const type = mini.type;
+    d.mini = null;
+
+    if (type === 'wash' && item) {
+      item.washed = true;
+      player.patience = clamp(player.patience + 1.5, 0, 100);
+      toast(`${item.label} washed. NOW BACK TO THE CHOPPING BOARD.`);
+      setFluffles('Vegetable hygiene completed. Please enjoy this brief period of competence.');
+      beep(720, 0.06, 0.03);
+    } else if (type === 'chop' && item) {
+      item.prepared = true;
+      item.label = `CHOPPED ${item.name.toUpperCase()}`;
+      player.patience = clamp(player.patience + 2.2, 0, 100);
+      toast(`${item.name.toUpperCase()} chopped. TAKE IT TO THE PREP TRAY.`);
+      setFluffles('Acceptable knife work. The cutting board has chosen not to press charges.');
+      beep(820, 0.055, 0.03);
+    } else if (type === 'pour' && item) {
+      toast(`${item.name.toUpperCase()} successfully transferred. Very little is on the floor.`);
+      finalizeIngredientToPot(player, item);
+    }
+    updateKitchenMiniUI();
+    updateKitchenHUD();
+  }
+
+  function updateKitchenMiniUI() {
+    const panel = $('kitchen-task-screen');
+    if (!panel) return;
+    const d = world.dinner;
+    const mini = d?.mini;
+    if (!mini?.active) {
+      panel.classList.add('hidden');
+      panel.classList.remove('active-player', 'spectator');
+      return;
+    }
+    panel.classList.remove('hidden');
+    const localIndex = window.NET?.online && window.NET?.started ? window.NET.playerIndex : mini.playerIndex;
+    const activeHere = localIndex === mini.playerIndex;
+    panel.classList.toggle('active-player', activeHere);
+    panel.classList.toggle('spectator', !activeHere);
+    const item = dinnerItemByName(mini.itemName);
+    const name = (item?.name || mini.itemName).toUpperCase();
+    const actor = players[mini.playerIndex]?.name || 'Partner';
+    const titles = {
+      wash: `Wash the ${name}`,
+      chop: `Chop the ${name}`,
+      pour: `${mini.itemName === 'pasta' ? 'Pour the pasta' : `Tip the ${name}`} into the pot`
+    };
+    const subtitles = {
+      wash: 'Hold interact to rinse it properly.',
+      chop: 'Tap interact when the moving marker is inside the green zone.',
+      pour: 'Hold interact. Keep the moving marker near the green zone for a clean pour.'
+    };
+    const emoji = mini.type === 'wash' ? '💦' : mini.type === 'chop' ? (mini.itemName === 'tomato' ? '🍅🔪' : '🧅🔪') : (mini.itemName === 'pasta' ? '🍝🥘' : '🥣🥘');
+    $('task-kicker').textContent = activeHere ? `${actor.toUpperCase()} · YOUR TASK` : `${actor.toUpperCase()} IS WORKING`;
+    $('task-title').textContent = titles[mini.type] || 'Kitchen task';
+    $('task-subtitle').textContent = subtitles[mini.type] || '';
+    $('task-emoji').textContent = emoji;
+    $('task-progress-fill').style.width = `${clamp(mini.progress, 0, 100)}%`;
+    $('task-progress-text').textContent = `${Math.round(mini.progress)}%`;
+    $('task-marker').style.left = `${clamp(mini.marker, 0, 1) * 100}%`;
+    $('task-safe-zone').style.left = mini.type === 'wash' ? '0%' : mini.type === 'chop' ? '27%' : '20%';
+    $('task-safe-zone').style.width = mini.type === 'wash' ? '100%' : mini.type === 'chop' ? '46%' : '60%';
+    const key = kitchenMiniKeyLabel(mini.playerIndex);
+    $('task-control').textContent = activeHere ? `${mini.type === 'chop' ? 'TAP' : 'HOLD'} ${key}` : 'PARTNER TASK';
+    $('task-observer-note').textContent = activeHere
+      ? 'Your partner can keep moving while you do this.'
+      : 'You can keep moving and handle your own kitchen responsibilities.';
   }
 
   function urgencyDuration(name) {
-    if (name === 'tomato') return 16;
-    if (name === 'onion') return 13;
+    if (name === 'tomato') return 30;
+    if (name === 'onion') return 26;
     return 0;
   }
 
@@ -1962,7 +2188,16 @@
       toast('That is not the Chef\'s current ingredient. Follow your task card.');
       return;
     }
+    if (item.name !== 'pasta' && !item.prepared) {
+      toast(`${item.label} still needs chopping.`);
+      return;
+    }
+    startKitchenMini('pour', player, item);
+  }
 
+  function finalizeIngredientToPot(player, item) {
+    const d = world.dinner;
+    if (!d || !item) return;
     item.heldBy = null;
     item.added = true;
     player.heldItem = null;
@@ -1972,7 +2207,7 @@
     d.recipe.add(item.name);
     d.ingredientStep += 1;
     player.patience = clamp(player.patience + 2.5, 0, 100);
-    toast(`${item.label} added. TEAM HAND-OFF COMPLETE.`);
+    toast(`${item.label} made it into the pot. TEAM HAND-OFF COMPLETE.`);
     beep(650 + d.recipe.size * 80, 0.06, 0.035);
 
     const garnish = mesh(new THREE.SphereGeometry(0.08, 8, 6), mat(item.name === 'tomato' ? 0xef5e67 : item.name === 'onion' ? 0xc79ce8 : 0xf1ca67, 0.75));
@@ -1982,13 +2217,13 @@
     const next = activeDinnerIngredient(d);
     if (next) {
       startDinnerUrgency(next);
-      setFluffles(`${item.label} is in. Runner: fetch ${next.toUpperCase()} quickly. ${urgencySubject(next)} will not wait politely.`);
-      toast(`NEXT INGREDIENT: ${next.toUpperCase()} — HURRY.`);
+      setFluffles(`${item.label} is in. Runner: prep ${next.toUpperCase()} quickly. ${urgencySubject(next)} will not wait politely.`);
+      toast(`NEXT: ${next.toUpperCase()} — WASH, CHOP, DELIVER.`);
     } else {
       clearDinnerUrgency();
       setDinnerStage(1);
-      toast('INGREDIENTS COMPLETE. CHEF: TURN ON THE STOVE. RUNNER: STAND BY FOR TROUBLE.');
-      setFluffles('Roles remain simple: Chef cooks. Runner handles whatever the apartment breaks next.');
+      toast('PREP COMPLETE. CHEF: TURN ON THE STOVE. RUNNER: STAND BY FOR TROUBLE.');
+      setFluffles('The mise en place survived. I am as disappointed as I am impressed.');
     }
     updateKitchenHUD();
   }
@@ -2050,6 +2285,18 @@
   function burnDinner() {
     const d = world.dinner;
     if (d.fire) return;
+    if (d.mini?.active) {
+      d.mini = null;
+      updateKitchenMiniUI();
+    }
+    const runner = players[d.runnerIndex];
+    if (runner?.heldItem?.kind === 'ingredient') {
+      const held = runner.heldItem;
+      held.heldBy = null;
+      runner.heldItem = null;
+      held.group.position.copy(held.homePos);
+      held.group.scale.setScalar(1);
+    }
     d.stoveOn = false;
     d.fire = true;
     if (d.smokeGroup) d.smokeGroup.visible = false;
@@ -2130,6 +2377,7 @@
     if (!d) return;
 
     updateDinnerCat(dt);
+    updateKitchenMini(dt);
 
     if (d.fire) {
       d.fireGroup.children.forEach((flame, i) => {
@@ -2243,20 +2491,20 @@
     const dx = x - prevX, dz = z - prevZ;
     if (dx * dx + dz * dz > 0.0001) cat.group.rotation.y = Math.atan2(dx, dz);
 
+    // v1.1: Kevin may judge the ingredients, but he never moves them.
     if (!gameStarted || won || d.catCalm > 0) return;
     d.catTimer -= dt;
     if (d.catTimer <= 0) {
-      d.catTimer = 11 + Math.random() * 6;
+      d.catTimer = 13 + Math.random() * 7;
       const active = activeDinnerIngredient(d);
-      const candidates = d.items.filter(i => i.kind === 'ingredient' && i.name === active && !i.added && !i.delivered && !i.heldBy && !i.served);
-      if (candidates.length) {
-        const item = candidates[0];
-        item.stolenCount += 1;
-        item.group.position.set(-1.5 + Math.random() * 8.0, 0.3, 0.2 + Math.random() * 4.2);
-        chaos += 2;
-        toast(`KEVIN RELOCATED ${item.label}. THIS WAS NOT IN THE RECIPE.`);
-        setFluffles('The cat has performed inventory management without authorization.');
-        beep(820, 0.045, 0.025);
+      if (active) {
+        const item = dinnerItemByName(active);
+        if (item && !item.heldBy && !item.delivered && !item.added) {
+          chaos += 0.5;
+          toast(`KEVIN IS JUDGING THE ${item.name.toUpperCase()}. HE IS NOT ALLOWED TO MOVE IT ANYMORE.`);
+          setFluffles('Following a formal complaint, Kevin has lost ingredient relocation privileges.');
+          beep(760, 0.035, 0.018);
+        }
       }
     }
   }
@@ -2279,7 +2527,7 @@
     const d = world.dinner;
     const chef = d ? players[d.chefIndex] : players[0];
     const runner = d ? players[d.runnerIndex] : players[1];
-    let objective = `${runner.name} (RUNNER) fetches the glowing ingredient → prep tray. ${chef.name} (CHEF) adds it to the pot.`;
+    let objective = `${runner.name} (RUNNER): fetch → wash → chop → prep tray. ${chef.name} (CHEF): pour/tip ingredients into the pot.`;
     if (dinnerStage === 1) objective = `${chef.name} (CHEF) cooks and stirs. ${runner.name} (RUNNER) watches for trouble.`;
     if (dinnerStage === 2) {
       if (d && d.fire) objective = `${runner.name} (RUNNER): get the extinguisher. ${chef.name} (CHEF): stay clear.`;
@@ -2325,10 +2573,16 @@
         const countdown = d.urgentRemaining > 0 ? ` · ⏱ ${Math.ceil(d.urgentRemaining)}s` : '';
         if (d.urgentStage === 1) {
           phase.textContent = `🔥 ${urgencySubject(active)} burning — ${active.toUpperCase()} NOW!`;
+        } else if (d.mini?.active) {
+          phase.textContent = `🔎 ${players[d.mini.playerIndex].name}: ${d.mini.type.toUpperCase()} ${d.mini.itemName.toUpperCase()}`;
+        } else if (item?.delivered) {
+          phase.textContent = `👨‍🍳 ${chef.name}: ${active === 'pasta' ? 'pour' : 'tip'} ${active.toUpperCase()} into pot${countdown}`;
+        } else if (active !== 'pasta' && item?.heldBy && !item.washed) {
+          phase.textContent = `💦 ${runner.name}: wash ${active.toUpperCase()}${countdown}`;
+        } else if (active !== 'pasta' && item?.heldBy && item.washed && !item.prepared) {
+          phase.textContent = `🔪 ${runner.name}: chop ${active.toUpperCase()}${countdown}`;
         } else {
-          phase.textContent = item && item.delivered
-            ? `👨‍🍳 ${chef.name}: add ${active.toUpperCase()} to pot${countdown}`
-            : `🏃 ${runner.name}: bring ${active.toUpperCase()} to prep tray${countdown}`;
+          phase.textContent = `🏃 ${runner.name}: prepare ${active.toUpperCase()}${countdown}`;
         }
       }
       else if (d.stoveOn) phase.textContent = d.cook >= 68 && d.cook <= 94 ? `✓ ${chef.name}: TURN STOVE OFF!` : `👨‍🍳 ${chef.name}: stir + watch meter`;
@@ -2352,6 +2606,7 @@
 
     updateKitchenItemGuides();
     updateKitchenBeacons();
+    updateKitchenMiniUI();
   }
 
   function friendlyDinnerAction(text) {
@@ -2359,6 +2614,11 @@
       .replace('PLACE ','Place ')
       .replace(' ON PREP TRAY',' on prep tray')
       .replace('ADD ','Add ')
+      .replace('WASH ','Wash ')
+      .replace('CHOP ','Chop ')
+      .replace('POUR ','Pour ')
+      .replace('TIP ','Tip ')
+      .replace(' INTO POT',' into pot')
       .replace(' TO POT',' to pot')
       .replace('DROP ','Drop ')
       .replace('SERVE ','Serve ')
@@ -2401,12 +2661,14 @@
     const d = world.dinner; if (!d || !d.beacons) return;
     const active = activeDinnerIngredient(d);
     const activeItem = active ? dinnerItemByName(active) : null;
-    const show = {pot:false,handoff:false,sink:false,extinguisher:false,table:false};
+    const show = {pot:false,handoff:false,chop:false,sink:false,extinguisher:false,table:false};
     if (d.fire) show.extinguisher = true;
     else if (d.sinkLeak) show.sink = true;
     else if (d.mealReady) show.table = true;
     else if (active) {
       if (activeItem && activeItem.delivered) show.pot = true;
+      else if (active !== 'pasta' && activeItem?.heldBy && !activeItem.washed) show.sink = true;
+      else if (active !== 'pasta' && activeItem?.heldBy && activeItem.washed && !activeItem.prepared) show.chop = true;
       else show.handoff = true;
     } else show.pot = true;
 
@@ -2763,7 +3025,10 @@
     const n2 = $('p2-name').value.trim() || 'Her';
 
     if (!players.length) {
-      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-8.05, 0, -1.25), { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', grab: 'KeyE' }));
+      const p1Controls = window.NET?.online
+        ? { forward: ['KeyW','ArrowUp'], back: ['KeyS','ArrowDown'], left: ['KeyA','ArrowLeft'], right: ['KeyD','ArrowRight'], grab: 'KeyE' }
+        : { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', grab: 'KeyE' };
+      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-8.05, 0, -1.25), p1Controls));
       const p2Controls = window.NET?.online
         ? { forward: 'RemoteW', back: 'RemoteS', left: 'RemoteA', right: 'RemoteD', grab: 'RemoteE' }
         : { forward: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', grab: 'Enter' };
@@ -2951,12 +3216,25 @@
     if (!window.NET?.isHost || !players[1]) return;
     if (quizActive) {
       if (down) {
-        const map = { KeyW: 'ArrowUp', KeyA: 'ArrowLeft', KeyS: 'ArrowDown', KeyD: 'ArrowRight' };
+        const map = { KeyW: 'ArrowUp', KeyA: 'ArrowLeft', KeyS: 'ArrowDown', KeyD: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowLeft: 'ArrowLeft', ArrowDown: 'ArrowDown', ArrowRight: 'ArrowRight' };
         if (map[code]) handleQuizKey(map[code]);
       }
       return;
     }
-    const map = { KeyW: 'RemoteW', KeyS: 'RemoteS', KeyA: 'RemoteA', KeyD: 'RemoteD', KeyE: 'RemoteE' };
+    if (code === 'KeyF') {
+      if (down) tryCuteSpank(players[1]);
+      return;
+    }
+    const d = world.dinner;
+    if (currentLevel === 'dinner' && d?.mini?.active && d.mini.playerIndex === 1 && code === 'KeyE') {
+      handleKitchenMiniInput(1, down);
+      return;
+    }
+    const map = {
+      KeyW: 'RemoteW', KeyS: 'RemoteS', KeyA: 'RemoteA', KeyD: 'RemoteD',
+      ArrowUp: 'RemoteW', ArrowDown: 'RemoteS', ArrowLeft: 'RemoteA', ArrowRight: 'RemoteD',
+      KeyE: 'RemoteE'
+    };
     const remoteCode = map[code];
     if (!remoteCode) return;
     if (down && !keys[remoteCode] && remoteCode === 'RemoteE') players[1].toggleGrab();
@@ -3035,6 +3313,7 @@
         urgentStage: d.urgentStage,
         chefIndex: d.chefIndex,
         runnerIndex: d.runnerIndex,
+        mini: d.mini ? { ...d.mini } : null,
         items: d.items.map(item => ({
           name: item.name,
           p: [item.group.position.x, item.group.position.y, item.group.position.z],
@@ -3043,6 +3322,8 @@
           added: item.added,
           delivered: item.delivered,
           served: item.served,
+          washed: !!item.washed,
+          prepared: !!item.prepared,
           heldBy: item.heldBy ? players.indexOf(item.heldBy) : -1
         })),
         cat: d.cat?.group ? networkObjectState(d.cat.group) : null
@@ -3130,6 +3411,7 @@
       d.urgentStage = sd.urgentStage;
       d.chefIndex = sd.chefIndex;
       d.runnerIndex = sd.runnerIndex;
+      d.mini = sd.mini ? { ...sd.mini } : null;
       if (d.fireGroup) d.fireGroup.visible = !!d.fire;
       if (d.smokeGroup) d.smokeGroup.visible = !!d.urgentStage && !d.fire;
       if (d.water) {
@@ -3143,6 +3425,9 @@
         item.added = !!si.added;
         item.delivered = !!si.delivered;
         item.served = !!si.served;
+        item.washed = !!si.washed;
+        item.prepared = !!si.prepared;
+        if (item.prepared && item.kind === 'ingredient' && item.name !== 'pasta') item.label = `CHOPPED ${item.name.toUpperCase()}`;
         item.heldBy = si.heldBy >= 0 ? players[si.heldBy] : null;
         item.group.position.set(si.p[0], si.p[1], si.p[2]);
         item.group.rotation.y = si.ry || 0;
@@ -3183,6 +3468,7 @@
 
   function applyFx(payload = {}) {
     if (payload.type === 'toast' && payload.data?.text) toast(payload.data.text, true);
+    if (payload.type === 'spank') animateCuteSpankVisual(payload.data?.giverIndex ?? 1, payload.data?.targetIndex ?? 0);
   }
 
   function bindUI() {
@@ -3207,7 +3493,7 @@
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Space'].includes(e.code)) e.preventDefault();
 
       if (window.NET?.online && window.NET?.started && !window.NET.isHost) {
-        if (['KeyW','KeyA','KeyS','KeyD','KeyE'].includes(e.code)) {
+        if (['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','KeyE','KeyF'].includes(e.code)) {
           if (!keys[e.code]) window.NET.sendInput(e.code, true);
           keys[e.code] = true;
         }
@@ -3222,20 +3508,33 @@
 
       if (!keys[e.code]) {
         if (e.code === 'KeyR' && players.length && gameStarted) requestFlow('resetGame');
-        for (const p of players) if (e.code === p.controls.grab) p.toggleGrab();
+        if (e.code === 'KeyF' && players[1] && (!window.NET?.online || window.NET.playerIndex === 1)) tryCuteSpank(players[1]);
+        const d = world.dinner;
+        let miniHandled = false;
+        if (currentLevel === 'dinner' && d?.mini?.active) {
+          const activePlayer = players[d.mini.playerIndex];
+          if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) {
+            handleKitchenMiniInput(d.mini.playerIndex, true);
+            miniHandled = true;
+          }
+        }
+        if (!miniHandled) for (const p of players) if (bindingHas(p.controls.grab, e.code)) p.toggleGrab();
       }
       keys[e.code] = true;
     });
 
     window.addEventListener('keyup', (e) => {
-      if (window.NET?.online && window.NET?.started && !window.NET.isHost && ['KeyW','KeyA','KeyS','KeyD','KeyE'].includes(e.code)) {
+      if (window.NET?.online && window.NET?.started && !window.NET.isHost && ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','KeyE','KeyF'].includes(e.code)) {
         window.NET.sendInput(e.code, false);
+      } else if (currentLevel === 'dinner' && world.dinner?.mini?.active) {
+        const activePlayer = players[world.dinner.mini.playerIndex];
+        if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) handleKitchenMiniInput(world.dinner.mini.playerIndex, false);
       }
       keys[e.code] = false;
     });
     window.addEventListener('blur', () => {
       if (window.NET?.online && window.NET?.started && !window.NET.isHost) {
-        for (const code of ['KeyW','KeyA','KeyS','KeyD','KeyE']) if (keys[code]) window.NET.sendInput(code, false);
+        for (const code of ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','KeyE','KeyF']) if (keys[code]) window.NET.sendInput(code, false);
       }
       for (const k in keys) keys[k] = false;
     });

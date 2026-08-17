@@ -1,45 +1,9 @@
-TILL RAGE DO US PART — ONLINE v1.0
-=================================
+TILL RAGE DO US PART — ONLINE v1.1
 
-THIS VERSION IS FOR TWO PEOPLE IN DIFFERENT CITIES.
-
-QUICK LOCAL TEST
-----------------
-1. Install Node.js 20 or newer.
-2. Open Command Prompt / Terminal inside this folder.
-3. Run:
-
-   npm start
-
-4. Open http://localhost:3000
-
-ONLINE PLAY
------------
-To play from different cities, deploy this whole folder to Railway (or another Node.js host).
-Both of you must open the SAME deployed website URL.
-
-PLAYER 1:
-- Enter name
-- CREATE PRIVATE ROOM
-- Send the 5-character code to your girlfriend
-
-PLAYER 2:
-- Open the same website URL
-- Enter name + room code
-- JOIN ROOM
-
-HOST:
-- Select Full Episode / Kitchen / Questions
-- START THE CURSED DATE
-
-CONTROLS ON BOTH LAPTOPS
-------------------------
-W A S D = Move your own character
-E       = Interact / grab / cook / pick up
-
-The host controls story Continue, Skip Level and Restart.
-
-IMPORTANT
----------
-Do NOT double-click index.html for online multiplayer.
-Online mode needs server.js running (locally or on Railway).
+1. npm start
+2. Open http://localhost:3000
+3. Create a private room.
+4. Send the room code to your girlfriend.
+5. Both can move with WASD or Arrow Keys and interact with E.
+6. In the kitchen, follow the personal task cards. Vegetables now need washing + chopping.
+7. Girlfriend can press F near you for the cute BONK.
