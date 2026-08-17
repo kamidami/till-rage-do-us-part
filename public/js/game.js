@@ -282,7 +282,7 @@
     }
 
     renderer = new THREE.WebGLRenderer({ canvas: $('game-canvas'), antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, window.matchMedia('(pointer: coarse)').matches ? 1.35 : 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -468,7 +468,7 @@
     const key = new THREE.DirectionalLight(0xffe2ec, 3.0);
     key.position.set(-4, 10, 6);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048, window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048);
     key.shadow.camera.left = -14;
     key.shadow.camera.right = 14;
     key.shadow.camera.top = 12;
@@ -1554,7 +1554,7 @@
 
   function addKitchenLights() {
     scene.add(new THREE.HemisphereLight(0xffeadb, 0x28304a, 2.35));
-    const sun=new THREE.DirectionalLight(0xffead7,2.25); sun.position.set(-5,10,6); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); sun.shadow.camera.left=-14; sun.shadow.camera.right=14; sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12; scene.add(sun);
+    const sun=new THREE.DirectionalLight(0xffead7,2.25); sun.position.set(-5,10,6); sun.castShadow=true; sun.shadow.mapSize.set(window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048,window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048); sun.shadow.camera.left=-14; sun.shadow.camera.right=14; sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12; scene.add(sun);
     const counterGlow=new THREE.PointLight(0xffb77a,13,12,2); counterGlow.position.set(-1,3.4,-2.4); scene.add(counterGlow);
     const sinkGlow=new THREE.PointLight(0xffe0b7,8,8,2); sinkGlow.position.set(4.6,3.2,-3.4); scene.add(sinkGlow);
     const diningGlow=new THREE.PointLight(0xffa985,16,10,2); diningGlow.position.set(5.7,3.1,2.5); scene.add(diningGlow);

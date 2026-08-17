@@ -1,4 +1,4 @@
-TILL RAGE DO US PART — ONLINE v1.1
+TILL RAGE DO US PART — ONLINE v1.2
 
 1. npm start
 2. Open http://localhost:3000
@@ -7,3 +7,5 @@ TILL RAGE DO US PART — ONLINE v1.1
 5. Both can move with WASD or Arrow Keys and interact with E.
 6. In the kitchen, follow the personal task cards. Vegetables now need washing + chopping.
 7. Girlfriend can press F near you for the cute BONK.
+
+MOBILE: Open the same Railway URL on both phones. Join the private room, then rotate to landscape. Use the left joystick and right ACT button.

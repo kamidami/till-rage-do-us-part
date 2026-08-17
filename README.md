@@ -1,8 +1,8 @@
-# Till Rage Do Us Part — Online v1.1
+# Till Rage Do Us Part — Online v1.2
 
 Two-player online 3D co-op couple game.
 
-## v1.1 changes
+## v1.2 changes
 
 - Both **WASD and Arrow Keys** move your character in online mode.
 - Kevin no longer relocates pasta, tomato, or onion. Ingredient starting locations stay stable.
@@ -45,3 +45,15 @@ npm test
 ## Railway
 
 The project reads `process.env.PORT` and includes `/healthz`. Existing Railway GitHub deployment can redeploy automatically after you push this version.
+
+
+## v1.2 Mobile co-op
+- Phone/tablet virtual joystick for movement
+- Large ACT button supports tap and hold kitchen tasks
+- Girlfriend client gets a BONK ♥ button
+- Mobile quiz answer buttons
+- Landscape-friendly compact HUD and notch-safe controls
+- Reduced mobile pixel ratio/shadow resolution for smoother rendering
+- Desktop keyboard controls remain unchanged
+
+For best mobile play, rotate both phones to landscape after the game begins.

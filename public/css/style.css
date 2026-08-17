@@ -269,3 +269,90 @@ body.kitchen-mode #p2-label.role-runner { color:#bce9ff; }
   .kitchen-task-screen.spectator { left:10px; bottom:174px; width:240px; }
   .task-closeup { padding:12px 13px 11px; }
 }
+
+
+/* =============================================================
+   v1.2 — MOBILE CO-OP
+   ============================================================= */
+#game-canvas { touch-action:none; }
+.mobile-controls { position:fixed; inset:0; z-index:18; pointer-events:none; user-select:none; -webkit-user-select:none; }
+.mobile-stick { position:absolute; left:max(18px,env(safe-area-inset-left)); bottom:max(18px,env(safe-area-inset-bottom)); width:132px; height:142px; pointer-events:auto; touch-action:none; display:grid; justify-items:center; align-content:end; gap:4px; }
+.mobile-stick-ring { width:118px; height:118px; border-radius:50%; position:relative; display:grid; place-items:center; background:radial-gradient(circle,rgba(255,255,255,.11),rgba(20,11,29,.64)); border:2px solid rgba(255,255,255,.2); box-shadow:0 12px 30px rgba(0,0,0,.28),inset 0 0 0 12px rgba(255,255,255,.025); backdrop-filter:blur(8px); }
+.mobile-stick-ring:before,.mobile-stick-ring:after { content:""; position:absolute; background:rgba(255,255,255,.1); border-radius:999px; }
+.mobile-stick-ring:before { width:62%; height:2px; }
+.mobile-stick-ring:after { height:62%; width:2px; }
+.mobile-stick-knob { width:52px; height:52px; border-radius:50%; position:relative; z-index:2; background:linear-gradient(145deg,#ffd3df,#ff7fa0); border:2px solid rgba(255,255,255,.65); box-shadow:0 8px 18px rgba(255,91,135,.28); will-change:transform; }
+.mobile-stick>span { font-size:8px; font-weight:1000; letter-spacing:.16em; opacity:.65; }
+.mobile-actions { position:absolute; right:max(18px,env(safe-area-inset-right)); bottom:max(20px,env(safe-area-inset-bottom)); display:flex; align-items:flex-end; gap:12px; pointer-events:auto; }
+.mobile-action-btn,.mobile-bonk-btn { touch-action:none; user-select:none; -webkit-user-select:none; border:2px solid rgba(255,255,255,.35); color:white; box-shadow:0 14px 34px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.25); display:grid; place-items:center; align-content:center; gap:2px; cursor:pointer; }
+.mobile-action-btn { width:104px; height:104px; border-radius:50%; background:linear-gradient(145deg,rgba(143,113,255,.96),rgba(255,111,145,.96)); }
+.mobile-bonk-btn { width:76px; height:76px; border-radius:50%; background:linear-gradient(145deg,rgba(255,190,92,.95),rgba(237,95,121,.96)); transform:rotate(-5deg); }
+.mobile-action-btn b { font-size:20px; }.mobile-bonk-btn b { font-size:12px; }
+.mobile-action-btn small,.mobile-bonk-btn small { font-size:7px; max-width:82px; line-height:1.08; opacity:.82; }
+.mobile-action-btn.pressed,.mobile-bonk-btn.pressed { transform:scale(.92); filter:brightness(1.15); }
+.mobile-bonk-btn.pressed { transform:scale(.91) rotate(-5deg); }
+.rotate-phone { position:fixed; z-index:19; left:50%; bottom:168px; transform:translateX(-50%); width:min(250px,78vw); padding:10px 13px; border-radius:15px; background:rgba(20,11,29,.88); border:1px solid rgba(255,255,255,.13); box-shadow:0 15px 35px rgba(0,0,0,.3); text-align:center; pointer-events:none; }
+.rotate-phone div { font-size:22px; }.rotate-phone strong,.rotate-phone span { display:block; }.rotate-phone strong { font-size:11px; }.rotate-phone span { margin-top:2px; font-size:8px; opacity:.62; }
+.mobile-quiz-pad { display:none; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0 14px; }
+.mobile-quiz-pad.mobile-visible { display:grid; }
+.mobile-quiz-pad button { border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.07); color:#fff; min-height:58px; border-radius:14px; display:flex; align-items:center; gap:9px; padding:9px 11px; text-align:left; touch-action:manipulation; }
+.mobile-quiz-pad b { width:30px; height:30px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center; background:linear-gradient(135deg,#ff9fba,#8f71ff); color:#25152a; }
+.mobile-quiz-pad span { font-size:9px; font-weight:850; line-height:1.2; }
+
+@media (pointer:coarse), (max-width:900px) {
+  button,input { min-height:44px; }
+  .mini-btn { min-height:38px; }
+  .controls-pill { display:none!important; }
+  .network-badge { top:max(8px,env(safe-area-inset-top)); right:max(8px,env(safe-area-inset-right)); bottom:auto; font-size:8px; padding:5px 8px; opacity:.82; }
+  .online-card { width:min(650px,calc(100vw - 20px)); max-height:calc(100dvh - 20px); padding:20px 16px; border-radius:22px; }
+  .online-card h1 { font-size:clamp(38px,12vw,58px); }
+  .tagline { font-size:12px; margin:12px auto 15px; }
+  .lobby-entry,.room-lobby { gap:11px; margin-top:12px; }
+  .online-name-label input,.join-box input { font-size:16px; }
+  .overlay { padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left)); }
+  .story-card,.quiz-card,.start-card,.win-card { max-height:calc(100dvh - 20px); overflow:auto; padding:20px 16px; border-radius:21px; }
+  .quiz-options { margin:8px 0; }
+  .private-controls { display:none; }
+}
+
+@media (pointer:coarse) and (orientation:landscape), (max-width:900px) and (orientation:landscape) {
+  .hud-top { top:max(6px,env(safe-area-inset-top)); width:min(700px,calc(100% - 180px)); padding:7px 10px; border-radius:13px; }
+  .eyebrow { font-size:7px; }
+  #objective { font-size:11px; margin-top:1px; }
+  .hud-actions .mini-btn { padding:6px 7px; font-size:7px; min-height:30px; }
+  .crisis-track { top:54px; width:min(610px,calc(100% - 280px)); padding:4px; }
+  .crisis-step { padding:3px 5px; }.crisis-step b { width:16px; height:16px; }
+  .patience-wrap { top:86px; width:min(600px,calc(100% - 290px)); grid-template-columns:1fr 1fr; gap:5px; }
+  .patience-card { padding:5px 7px; }.meter-label { font-size:7px; margin-bottom:3px; }.meter { height:5px; }
+  .fluffles { left:150px; bottom:max(8px,env(safe-area-inset-bottom)); width:min(390px,calc(100% - 410px)); padding:6px 8px; }
+  .fluffles-face { width:30px; height:30px; border-radius:9px; font-size:13px; }
+  .fluffles .eyebrow { font-size:6px; } #fluffles-line { font-size:8px; margin-top:1px; }
+  .action-prompts, body.kitchen-mode .action-prompts { bottom:8px; width:min(500px,calc(100% - 420px)); gap:5px; }
+  .action-card { min-height:34px; padding:4px 7px; border-radius:11px; }.action-card kbd { display:none; }.action-card small { font-size:6px; }.action-card span { font-size:8px; }
+  .kitchen-status { top:55px; right:max(8px,env(safe-area-inset-right)); width:190px; padding:9px 8px 7px; transform:scale(.92); transform-origin:top right; }
+  .kitchen-board-title { font-size:9px; }.kitchen-phase { font-size:8px; }.recipe-chips span { font-size:6px; padding:3px 4px; }
+  .kitchen-task-screen,.kitchen-task-screen.active-player { bottom:90px; width:min(440px,calc(100% - 310px)); }
+  .kitchen-task-screen.spectator { left:145px; bottom:75px; width:260px; }
+  .task-closeup { padding:9px 11px; }.task-closeup h3 { font-size:14px; }.task-closeup p { font-size:8px; margin-bottom:6px; }.task-emoji { font-size:26px; }
+  .toast { top:132px; font-size:8px; padding:6px 9px; max-width:55vw; }
+}
+
+@media (pointer:coarse) and (orientation:portrait), (max-width:600px) and (orientation:portrait) {
+  .mobile-stick { width:118px; height:128px; left:max(10px,env(safe-area-inset-left)); }
+  .mobile-stick-ring { width:104px; height:104px; }
+  .mobile-stick-knob { width:46px; height:46px; }
+  .mobile-actions { right:max(10px,env(safe-area-inset-right)); gap:7px; }
+  .mobile-action-btn { width:92px; height:92px; }.mobile-bonk-btn { width:66px; height:66px; }
+  .hud-top { top:max(7px,env(safe-area-inset-top)); width:calc(100% - 16px); }
+  .crisis-track { top:72px; width:calc(100% - 16px); }
+  .patience-wrap { top:112px; width:calc(100% - 16px); grid-template-columns:1fr 1fr; }
+  .meter-label span:last-child { display:none; }
+  .fluffles { display:none; }
+  .action-prompts,body.kitchen-mode .action-prompts { bottom:150px; width:calc(100% - 22px); grid-template-columns:1fr; }
+  .action-card { min-height:36px; }.action-card kbd { display:none; }
+  .kitchen-status { top:158px; right:8px; width:190px; }
+  .kitchen-task-screen,.kitchen-task-screen.active-player { bottom:160px; width:calc(100% - 28px); }
+  .kitchen-task-screen.spectator { left:10px; bottom:158px; width:220px; }
+  .toast { top:222px; }
+  .mobile-quiz-pad { grid-template-columns:1fr; }
+}

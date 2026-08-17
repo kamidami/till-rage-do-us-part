@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#160d20" />
-  <title>Till Rage Do Us Part — Interactive Kitchen Update</title>
+  <title>Till Rage Do Us Part — Mobile Co-op Update</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -88,12 +91,27 @@
       </div>
     </div>
 
+    <div id="mobile-controls" class="mobile-controls hidden" aria-label="Mobile game controls">
+      <div id="mobile-stick" class="mobile-stick" aria-label="Move joystick">
+        <div class="mobile-stick-ring"><div id="mobile-stick-knob" class="mobile-stick-knob"></div></div>
+        <span>MOVE</span>
+      </div>
+      <div class="mobile-actions">
+        <button id="mobile-action-btn" class="mobile-action-btn" type="button"><b>ACT</b><small id="mobile-action-label">Interact</small></button>
+        <button id="mobile-bonk-btn" class="mobile-bonk-btn hidden" type="button"><b>BONK ♥</b><small>girlfriend therapy</small></button>
+      </div>
+    </div>
+
+    <div id="rotate-phone" class="rotate-phone hidden" aria-live="polite">
+      <div>↻</div><strong>Rotate your phone</strong><span>Landscape gives you more room for chaos.</span>
+    </div>
+
     <section id="online-screen" class="overlay active">
       <div class="online-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">ONLINE CO-OP v1.1 · INTERACTIVE KITCHEN</div>
+        <div class="version-chip">ONLINE CO-OP v1.2 · PHONE FRIENDLY</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
-        <p class="tagline">Create one private room, send the code to your girlfriend, and play the same cursed apartment from two different laptops.</p>
+        <p class="tagline">Create one private room, send the code to your girlfriend, and play the same cursed apartment from two different phones or computers.</p>
 
         <div id="connection-state" class="connection-state connecting">● Connecting to game server…</div>
 
@@ -139,7 +157,7 @@
     <section id="start-screen" class="overlay">
       <div class="start-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">WEB BUILD v1.1 · INTERACTIVE KITCHEN</div>
+        <div class="version-chip">WEB BUILD v1.2 · PHONE FRIENDLY</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
         <p class="tagline">A cursed apartment, one suspicious lease, and a relationship inspection conducted by a teddy bear with no visible qualifications.</p>
 
@@ -209,6 +227,13 @@
           </div>
         </div>
 
+        <div id="mobile-quiz-pad" class="mobile-quiz-pad">
+          <button type="button" data-key="KeyW"><b>1</b><span>Option 1</span></button>
+          <button type="button" data-key="KeyA"><b>2</b><span>Option 2</span></button>
+          <button type="button" data-key="KeyS"><b>3</b><span>Option 3</span></button>
+          <button type="button" data-key="KeyD"><b>4</b><span>Option 4</span></button>
+        </div>
+
         <div id="quiz-result" class="quiz-result hidden"></div>
         <button id="quiz-next" class="primary-btn hidden">NEXT QUESTION</button>
         <button id="quiz-skip" class="secondary-btn">SKIP QUESTIONS ⏭</button>
@@ -240,5 +265,6 @@
   <script src="js/config.js"></script>
   <script src="js/net.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/mobile.js"></script>
 </body>
 </html>
