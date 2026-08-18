@@ -1,40 +1,57 @@
-# Till Rage Do Us Part — Online v1.2
+# Till Rage Do Us Part — Online v1.3
 
-Two-player online 3D co-op couple game.
+## Cozy Home + Custom Characters + Chaos Physics
 
-## v1.2 changes
+A private two-player online 3D co-op game for couples. One player creates a room, shares the 5-character code, and both play the same authoritative game world from separate phones/computers.
 
-- Both **WASD and Arrow Keys** move your character in online mode.
-- Kevin no longer relocates pasta, tomato, or onion. Ingredient starting locations stay stable.
-- Kitchen workflow is more interactive:
-  - Runner picks vegetables up.
-  - Tomato/onion must be washed at the sink.
-  - Tomato/onion must be chopped in a close-up timing mini-game.
-  - Prepared ingredients are delivered to the prep tray.
-  - Chef uses a close-up pour/tip task to transfer ingredients into the pot.
-  - Existing urgency, cooking, sink crisis, fire, serving, and patience systems remain.
-- In online mode, the player performing a close-up sees the full task panel; the partner sees a smaller observer panel and can keep moving.
-- Girlfriend (Player 2) can press **F** near Player 1 for a harmless cute “BONK ♥” frustration-release gag.
+### v1.3 highlights
 
-## Controls
-
-Online (each laptop):
-- Move: `WASD` **or** Arrow Keys
-- Interact / kitchen task: `E`
-- Girlfriend only: `F` near Player 1 = cute bonk
-
-Local mode:
-- Player 1: WASD + E
-- Player 2: Arrow Keys + Enter
-- Player 2: F = cute bonk
+- **Arrange Our Home** replaces the one-sofa-only first level.
+  - Bigger 30×18 apartment floor.
+  - Sofa first, then coffee table, bookshelf, living rug, floor lamp, plant and side table.
+  - Coffee table + bookshelf are heavy and require **both players on separate handles**.
+  - Smaller furniture is physically carried in front of the character.
+  - Glowing placement zones guide one task at a time.
+- **Fragile furniture damage**
+  - Lamp, plant and side table can crack from hard drops/collisions.
+  - A second severe impact can break them; a replacement respawns so the level remains finishable.
+  - A girlfriend BONK while carrying something fragile can make it drop and take damage.
+- **BONK knockdown**
+  - Player 2 can press **F** (or BONK on mobile) near Player 1.
+  - Player 1 falls over briefly before recovering.
+- **Shared fire safety**
+  - Either player can pick up and use the extinguisher during a kitchen fire.
+- **Character customization**
+  - 5 skin-tone choices.
+  - Casual, kurta or salwar-kameez outfit.
+  - Optional dupatta.
+  - Optional sunflower for her.
+  - Softer/cuter faces, larger eyes and improved silhouettes.
+- Keeps v1.2 mobile controls and v1.1 interactive kitchen:
+  - WASD **or Arrow Keys** online.
+  - Mobile joystick + ACT + BONK.
+  - Wash vegetables, chop in close-up, pour pasta, tip ingredients, cook/stir, sink flood, fire, serve plates.
+  - Kevin no longer moves ingredient positions.
 
 ## Run locally
+
+Requires Node.js 20+.
 
 ```bash
 npm start
 ```
 
-Open `http://localhost:3000`.
+Open:
+
+```text
+http://localhost:3000
+```
+
+Health endpoint:
+
+```text
+/healthz
+```
 
 ## Test
 
@@ -42,18 +59,16 @@ Open `http://localhost:3000`.
 npm test
 ```
 
+The smoke test verifies room creation/join, character-profile sync, start sync, WASD/arrow/F input relay, snapshots and flow events.
+
 ## Railway
 
-The project reads `process.env.PORT` and includes `/healthz`. Existing Railway GitHub deployment can redeploy automatically after you push this version.
+This project is already Railway-friendly. If your existing GitHub repository is connected to Railway, copy this version into that repository folder, commit, and push:
 
+```bash
+git add -A
+git commit -m "feat: add cozy home customization and chaos physics"
+git push
+```
 
-## v1.2 Mobile co-op
-- Phone/tablet virtual joystick for movement
-- Large ACT button supports tap and hold kitchen tasks
-- Girlfriend client gets a BONK ♥ button
-- Mobile quiz answer buttons
-- Landscape-friendly compact HUD and notch-safe controls
-- Reduced mobile pixel ratio/shadow resolution for smoother rendering
-- Desktop keyboard controls remain unchanged
-
-For best mobile play, rotate both phones to landscape after the game begins.
+Railway should deploy the new commit to the same public URL.

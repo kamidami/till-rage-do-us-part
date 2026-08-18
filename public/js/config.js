@@ -1,10 +1,10 @@
 // =============================================================
-// TILL RAGE DO US PART v0.8 — KITCHEN CLARITY + LEVEL SKIP BUILD
+// TILL RAGE DO US PART v1.3 — COZY HOME + CUSTOM CHARACTERS
 // Easy-to-edit values live here.
 // =============================================================
 window.GAME_CONFIG = {
   title: "Till Rage Do Us Part",
-  build: "v1.2 Interactive Kitchen Multiplayer",
+  build: "v1.3 Cozy Home + Custom Characters",
 
   playerSpeed: 4.45,
   playerRadius: 0.46,
@@ -28,10 +28,10 @@ window.GAME_CONFIG = {
   patienceRecovery: 1.0,
 
   winHoldSeconds: 1.35,
-  goalCenter: { x: 7.25, z: 0.0 },
-  goalHalfSize: { x: 1.95, z: 1.95 },
-  rug: { minX: -8.8, maxX: -2.15, minZ: -3.3, maxZ: 3.3 },
-  doorwayPassedX: 1.25,
+  goalCenter: { x: 10.2, z: 0.0 },
+  goalHalfSize: { x: 2.15, z: 2.1 },
+  rug: { minX: -12.9, maxX: -4.2, minZ: -4.0, maxZ: 4.0 },
+  doorwayPassedX: 1.35,
 
   pettyDoor: {
     hingeX: 0.0,
@@ -67,9 +67,9 @@ window.GAME_CONFIG = {
     },
     {
       kicker: "TRIAL ONE · SHARED DECISIONS",
-      title: "Moving Day From Hell",
+      title: "Arrange Our Home",
       speaker: "Dr. Fluffles",
-      text: "Put the sofa in the Cozy Corner. The rug hates traction, the door hates timing, and the cat hates peace. I will be observing professionally and enjoying this personally."
+      text: "First get the sofa through, then arrange the coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces dislike hard drops. I will be observing professionally and enjoying this personally."
     }
   ],
 

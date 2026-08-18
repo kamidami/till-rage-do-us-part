@@ -31,6 +31,17 @@ function cleanName(value, fallback) {
   const text = String(value || '').replace(/[<>]/g, '').trim().slice(0, 14);
   return text || fallback;
 }
+function cleanProfile(value) {
+  const p = value && typeof value === 'object' ? value : {};
+  const skins = new Set(['fair', 'warm', 'medium', 'brown', 'deep']);
+  const outfits = new Set(['casual', 'kurta', 'salwar']);
+  return {
+    skin: skins.has(p.skin) ? p.skin : 'warm',
+    outfit: outfits.has(p.outfit) ? p.outfit : 'casual',
+    dupatta: !!p.dupatta,
+    sunflower: p.sunflower !== false
+  };
+}
 function token() { return crypto.randomBytes(18).toString('base64url'); }
 function makeCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -46,8 +57,8 @@ function roomState(room) {
     code: room.code,
     started: room.started,
     players: [
-      room.host ? { name: room.host.name, connected: true, playerIndex: 0 } : null,
-      room.guest ? { name: room.guest.name, connected: true, playerIndex: 1 } : null
+      room.host ? { name: room.host.name, profile: room.host.profile, connected: true, playerIndex: 0 } : null,
+      room.guest ? { name: room.guest.name, profile: room.guest.profile, connected: true, playerIndex: 1 } : null
     ]
   };
 }
@@ -112,7 +123,7 @@ async function api(req, res, url) {
     const hostToken = token();
     const room = {
       code,
-      host: { name: cleanName(body.name, 'You'), token: hostToken },
+      host: { name: cleanName(body.name, 'You'), profile: cleanProfile(body.profile), token: hostToken },
       guest: null,
       started: false,
       streams: { host: new Set(), guest: new Set() },
@@ -130,7 +141,7 @@ async function api(req, res, url) {
     if (room.started) return json(res, 409, { ok: false, error: 'This room already started.' });
     if (room.guest) return json(res, 409, { ok: false, error: 'This room already has two players.' });
     const guestToken = token();
-    room.guest = { name: cleanName(body.name, 'Her'), token: guestToken };
+    room.guest = { name: cleanName(body.name, 'Her'), profile: cleanProfile(body.profile), token: guestToken };
     room.lastActivity = Date.now();
     emitRoomState(room);
     return json(res, 200, { ok: true, code, token: guestToken, playerIndex: 1, state: roomState(room) });
@@ -169,7 +180,7 @@ async function api(req, res, url) {
       if (!room.guest) return json(res, 409, { ok: false, error: 'Wait for your partner to join.' });
       room.started = true;
       const route = ['full', 'kitchen', 'quiz'].includes(body.route) ? body.route : 'full';
-      emitTo(room, 'all', 'game:start', { names: [room.host.name, room.guest.name], route, startedAt: Date.now() });
+      emitTo(room, 'all', 'game:start', { names: [room.host.name, room.guest.name], profiles: [room.host.profile, room.guest.profile], route, startedAt: Date.now() });
       return json(res, 200, { ok: true });
     }
     if (action === 'flow') {

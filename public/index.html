@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#160d20" />
-  <title>Till Rage Do Us Part — Mobile Co-op Update</title>
+  <title>Till Rage Do Us Part — Cozy Home & Character Update</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -44,8 +44,8 @@
       <div id="kitchen-guide" class="kitchen-guide hidden">
         <strong>🍳 YOUR KITCHEN ROLES</strong>
         <div class="guide-role chef"><b id="guide-chef-name">YOU</b><span>CHEF — pot + stove + stirring</span></div>
-        <div class="guide-role runner"><b id="guide-runner-name">HER</b><span>RUNNER — wash + chop + ingredients + emergencies</span></div>
-        <small>Follow your own task card. Vegetables now need washing + chopping before hand-off.</small>
+        <div class="guide-role runner"><b id="guide-runner-name">HER</b><span>RUNNER — wash + chop + ingredients</span></div>
+        <small>Follow your own task card. Vegetables need washing + chopping. If there is a fire, EITHER of you can grab the extinguisher.</small>
       </div>
 
       <div id="action-prompts" class="action-prompts hidden">
@@ -109,14 +109,21 @@
     <section id="online-screen" class="overlay active">
       <div class="online-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">ONLINE CO-OP v1.2 · PHONE FRIENDLY</div>
+        <div class="version-chip">ONLINE CO-OP v1.3 · COZY HOME + CUSTOM CHARACTERS</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
-        <p class="tagline">Create one private room, send the code to your girlfriend, and play the same cursed apartment from two different phones or computers.</p>
+        <p class="tagline">Create one private room, customize your characters, send the code to your partner, and arrange a much bigger cursed apartment together from two different phones or computers.</p>
 
         <div id="connection-state" class="connection-state connecting">● Connecting to game server…</div>
 
         <div id="lobby-entry" class="lobby-entry">
           <label class="online-name-label"><span>Your name</span><input id="online-name" maxlength="14" value="You" autocomplete="off" /></label>
+          <div class="character-customizer compact-customizer">
+            <strong>YOUR CHARACTER</strong>
+            <label><span>Skin tone</span><select id="online-skin"><option value="fair">Fair</option><option value="warm" selected>Warm</option><option value="medium">Medium</option><option value="brown">Warm brown</option><option value="deep">Deep brown</option></select></label>
+            <label><span>Outfit</span><select id="online-outfit"><option value="casual" selected>Casual cute</option><option value="kurta">Kurta</option><option value="salwar">Salwar kameez</option></select></label>
+            <label class="toggle-choice"><input id="online-dupatta" type="checkbox" /><span>Dupatta</span></label>
+            <label class="toggle-choice"><input id="online-sunflower" type="checkbox" checked /><span>Sunflower 🌻</span></label>
+          </div>
           <div class="online-split">
             <button id="create-room-btn" class="primary-btn">CREATE PRIVATE ROOM ♥</button>
             <div class="join-box">
@@ -157,24 +164,32 @@
     <section id="start-screen" class="overlay">
       <div class="start-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">WEB BUILD v1.2 · PHONE FRIENDLY</div>
+        <div class="version-chip">WEB BUILD v1.3 · COZY HOME + CUSTOM CHARACTERS</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
         <p class="tagline">A cursed apartment, one suspicious lease, and a relationship inspection conducted by a teddy bear with no visible qualifications.</p>
 
         <div class="name-grid">
-          <label>
-            <span>Your name</span>
-            <input id="p1-name" maxlength="14" value="You" autocomplete="off" />
-          </label>
-          <label>
-            <span>Her name</span>
-            <input id="p2-name" maxlength="14" value="Her" autocomplete="off" />
-          </label>
+          <label><span>Your name</span><input id="p1-name" maxlength="14" value="You" autocomplete="off" /></label>
+          <label><span>Her name</span><input id="p2-name" maxlength="14" value="Her" autocomplete="off" /></label>
+        </div>
+        <div class="local-character-grid">
+          <div class="character-customizer">
+            <strong>YOU</strong>
+            <label><span>Skin tone</span><select id="p1-skin"><option value="fair">Fair</option><option value="warm" selected>Warm</option><option value="medium">Medium</option><option value="brown">Warm brown</option><option value="deep">Deep brown</option></select></label>
+            <label><span>Outfit</span><select id="p1-outfit"><option value="casual" selected>Casual cute</option><option value="kurta">Kurta</option><option value="salwar">Salwar kameez</option></select></label>
+          </div>
+          <div class="character-customizer">
+            <strong>HER 🌻</strong>
+            <label><span>Skin tone</span><select id="p2-skin"><option value="fair">Fair</option><option value="warm">Warm</option><option value="medium" selected>Medium</option><option value="brown">Warm brown</option><option value="deep">Deep brown</option></select></label>
+            <label><span>Outfit</span><select id="p2-outfit"><option value="casual">Casual cute</option><option value="kurta">Kurta</option><option value="salwar" selected>Salwar kameez</option></select></label>
+            <label class="toggle-choice"><input id="p2-dupatta" type="checkbox" checked /><span>Dupatta</span></label>
+            <label class="toggle-choice"><input id="p2-sunflower" type="checkbox" checked /><span>Sunflower</span></label>
+          </div>
         </div>
 
         <div class="mission-box">
           <strong>Episode 1: The Lease From Hell</strong>
-          <span>Survive Moving Day From Hell, then cook Dinner Date From Hell. Now the kitchen has clearer character looks, a tiny sunflower on her head, and urgency drama — if tomato or onion arrive too late, dinner starts panicking.</span>
+          <span>First arrange your bigger apartment together: sofa, coffee table, bookshelf and fragile decor. Then survive the interactive kitchen. Hard drops can damage sensitive furniture, and girlfriend bonks can literally knock you down.</span>
         </div>
 
         <div class="route-select">

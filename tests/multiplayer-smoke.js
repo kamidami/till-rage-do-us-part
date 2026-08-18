@@ -69,23 +69,25 @@ async function openSSE(url) {
     const health = await fetch(base + '/healthz').then(r => r.json());
     if (!health.ok) throw new Error('Health check failed');
 
-    const created = await post('/api/rooms/create', { name: 'Kami' });
+    const created = await post('/api/rooms/create', { name: 'Kami', profile: { skin: 'brown', outfit: 'kurta', sunflower: false } });
     if (!created.ok || !created.code || !created.token) throw new Error('Create failed');
     hostSSE = await openSSE(`${base}/api/rooms/${created.code}/events?token=${encodeURIComponent(created.token)}`);
     await hostSSE.next('room:state');
 
-    const joined = await post('/api/rooms/join', { name: 'Partner', code: created.code });
+    const joined = await post('/api/rooms/join', { name: 'Partner', code: created.code, profile: { skin: 'medium', outfit: 'salwar', dupatta: true, sunflower: true } });
     if (!joined.ok || joined.playerIndex !== 1) throw new Error('Join failed');
     guestSSE = await openSSE(`${base}/api/rooms/${created.code}/events?token=${encodeURIComponent(joined.token)}`);
     await guestSSE.next('room:state');
     const state = await hostSSE.next('room:state');
     if (!state.players[1] || state.players[1].name !== 'Partner') throw new Error('Room state did not sync');
+    if (state.players[1].profile?.outfit !== 'salwar' || !state.players[1].profile?.dupatta) throw new Error('Character profile did not sync');
 
     const startPromise = guestSSE.next('game:start');
     const started = await post(`/api/rooms/${created.code}/start`, { token: created.token, route: 'kitchen' });
     if (!started.ok) throw new Error('Start failed');
     const start = await startPromise;
     if (start.route !== 'kitchen') throw new Error('Start route mismatch');
+    if (start.profiles?.[0]?.outfit !== 'kurta' || start.profiles?.[1]?.outfit !== 'salwar') throw new Error('Start profiles mismatch');
 
     const inputPromise = hostSSE.next('player:input');
     await post(`/api/rooms/${created.code}/input`, { token: joined.token, code: 'KeyW', down: true });

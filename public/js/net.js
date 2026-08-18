@@ -194,6 +194,15 @@
     $('lobby-entry').classList.remove('hidden');
   }
 
+  function readOnlineProfile() {
+    return {
+      skin: $('online-skin')?.value || 'warm',
+      outfit: $('online-outfit')?.value || 'casual',
+      dupatta: !!$('online-dupatta')?.checked,
+      sunflower: $('online-sunflower') ? !!$('online-sunflower').checked : true
+    };
+  }
+
   function wireUI() {
     $('online-screen')?.classList.add('active');
     $('start-screen')?.classList.remove('active');
@@ -201,7 +210,7 @@
 
     $('create-room-btn')?.addEventListener('click', async () => {
       setConnection('● Creating private room…', 'connecting');
-      const result = await NET.post('/api/rooms/create', { name: $('online-name').value.trim() || 'You' }).catch(() => ({ ok: false, error: 'Server unreachable' }));
+      const result = await NET.post('/api/rooms/create', { name: $('online-name').value.trim() || 'You', profile: readOnlineProfile() }).catch(() => ({ ok: false, error: 'Server unreachable' }));
       if (!result?.ok) return setConnection(`● ${result?.error || 'Could not create room'}`, 'offline');
       enterRoom(result);
     });
@@ -210,7 +219,7 @@
       const code = $('room-code-input').value.trim().toUpperCase();
       if (!code) return setConnection('● Enter the room code first', 'offline');
       setConnection('● Joining private room…', 'connecting');
-      const result = await NET.post('/api/rooms/join', { name: $('online-name').value.trim() || 'Her', code }).catch(() => ({ ok: false, error: 'Server unreachable' }));
+      const result = await NET.post('/api/rooms/join', { name: $('online-name').value.trim() || 'Her', code, profile: readOnlineProfile() }).catch(() => ({ ok: false, error: 'Server unreachable' }));
       if (!result?.ok) return setConnection(`● ${result?.error || 'Could not join room'}`, 'offline');
       enterRoom(result);
     });

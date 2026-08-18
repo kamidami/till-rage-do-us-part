@@ -356,3 +356,26 @@ body.kitchen-mode #p2-label.role-runner { color:#bce9ff; }
   .toast { top:222px; }
   .mobile-quiz-pad { grid-template-columns:1fr; }
 }
+
+/* ============================================================
+   v1.3 — character customization + expanded home level
+   ============================================================ */
+.character-customizer{
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px 10px;
+  padding:12px; border:1px solid rgba(255,255,255,.12); border-radius:16px;
+  background:rgba(255,255,255,.055); text-align:left;
+}
+.character-customizer>strong{grid-column:1/-1;font-size:.74rem;letter-spacing:.12em;color:#ffd9e7}
+.character-customizer label{display:flex;flex-direction:column;gap:5px;font-size:.72rem;color:#ddd0df}
+.character-customizer select{width:100%;border:1px solid rgba(255,255,255,.15);border-radius:11px;padding:9px 10px;background:#24152c;color:#fff;font:inherit}
+.character-customizer .toggle-choice{flex-direction:row;align-items:center;gap:8px;padding-top:6px}
+.character-customizer .toggle-choice input{width:18px;height:18px;accent-color:#ff779d}
+.compact-customizer{margin:10px 0 14px}
+.local-character-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.home-damage-chip{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:22;padding:7px 12px;border-radius:999px;background:rgba(67,31,38,.88);color:#ffd9d9;font-weight:900;font-size:.76rem;box-shadow:0 8px 30px rgba(0,0,0,.22);pointer-events:none}
+.home-damage-chip.hidden{display:none}
+@media (max-width:720px){
+  .local-character-grid{grid-template-columns:1fr}
+  .character-customizer{grid-template-columns:1fr 1fr;padding:9px;gap:7px}
+  .compact-customizer{max-height:210px;overflow:auto}
+}

@@ -1,11 +1,24 @@
-TILL RAGE DO US PART — ONLINE v1.2
+TILL RAGE DO US PART — ONLINE v1.3
 
-1. npm start
-2. Open http://localhost:3000
-3. Create a private room.
-4. Send the room code to your girlfriend.
-5. Both can move with WASD or Arrow Keys and interact with E.
-6. In the kitchen, follow the personal task cards. Vegetables now need washing + chopping.
-7. Girlfriend can press F near you for the cute BONK.
+LOCAL TEST
+1. Open this folder in Command Prompt / Terminal.
+2. Run: npm start
+3. Open http://localhost:3000
 
-MOBILE: Open the same Railway URL on both phones. Join the private room, then rotate to landscape. Use the left joystick and right ACT button.
+ONLINE
+- Create Private Room.
+- Choose your name, skin tone and outfit.
+- Send the room code to your partner.
+- Partner chooses her own character look and joins.
+- Host starts the episode.
+
+CONTROLS
+Desktop: WASD or Arrow Keys = move, E = interact, Her: F = BONK.
+Mobile: left joystick = move, ACT = interact, Her: BONK button.
+
+NEW FIRST LEVEL
+Arrange Our Home: sofa + coffee table + bookshelf + rug + lamp + plant + side table.
+Heavy furniture needs both players. Fragile decor can crack/break from hard drops.
+
+KITCHEN
+Either partner may use the fire extinguisher.

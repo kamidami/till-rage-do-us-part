@@ -31,6 +31,7 @@
   const skippedLevels = new Set();
   let kitchenChefIndex = 0;
   let lastSpankAt = -9999;
+  let pendingProfiles = null;
 
   const keys = Object.create(null);
   const players = [];
@@ -43,12 +44,14 @@
     door: null,
     cat: null,
     vase: null,
-    dinner: null
+    dinner: null,
+    arrange: null,
+    bounds: { minX: -14.5, maxX: 14.5, minZ: -8.5, maxZ: 8.5 }
   };
 
   const HANDLE_LOCAL = {
-    '-1': new THREE.Vector3(-1.35, 0.68, -0.72),
-    '1': new THREE.Vector3(1.35, 0.68, -0.72)
+    '-1': new THREE.Vector3(-1.52, 0.76, -0.81),
+    '1': new THREE.Vector3(1.52, 0.76, -0.81)
   };
 
   const tmpV1 = new THREE.Vector3();
@@ -136,7 +139,7 @@
   }
 
   class Player {
-    constructor(id, name, color, start, controls) {
+    constructor(id, name, color, start, controls, profile = {}) {
       this.id = id;
       this.name = name;
       this.controls = controls;
@@ -145,13 +148,18 @@
       this.canGrab = false;
       this.grabSide = null;
       this.start = start.clone();
-      this.group = makeCutePlayer(color, id === 1);
+      this.profile = profile || {};
+      this.group = makeCutePlayer(color, id === 1, this.profile);
       this.group.position.copy(start);
       scene.add(this.group);
       this.velocity = new THREE.Vector3();
       this.facing = new THREE.Vector3(1, 0, 0);
       this.heldItem = null;
       this.lastDinnerInteract = -9999;
+      this.homeHeldItem = null;
+      this.homeGrabItem = null;
+      this.homeGrabSide = null;
+      this.knockedUntil = 0;
     }
 
     update(dt) {
@@ -161,6 +169,21 @@
         if (this.heldItem) updateHeldDinnerItem(this);
         updatePlayerFace(this);
         return;
+      }
+
+      if (performance.now() < this.knockedUntil) {
+        this.velocity.multiplyScalar(0.7);
+        const body = this.group.userData.body;
+        if (body) {
+          body.rotation.z = (this.id === 1 ? -1 : 1) * 1.18;
+          body.position.y = -0.22;
+        }
+        updatePlayerFace(this);
+        return;
+      } else if (this.knockedUntil) {
+        this.knockedUntil = 0;
+        const body = this.group.userData.body;
+        if (body) { body.rotation.z = 0; body.rotation.x = 0; body.position.y = 0.03; }
       }
 
       const x = (bindingDown(this.controls.right) ? 1 : 0) - (bindingDown(this.controls.left) ? 1 : 0);
@@ -183,8 +206,9 @@
 
       const old = this.group.position.clone();
       this.group.position.addScaledVector(this.velocity, dt);
-      this.group.position.x = clamp(this.group.position.x, -9.45, 9.45);
-      this.group.position.z = clamp(this.group.position.z, -5.45, 5.45);
+      const b = world.bounds || { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
+      this.group.position.x = clamp(this.group.position.x, b.minX, b.maxX);
+      this.group.position.z = clamp(this.group.position.z, b.minZ, b.maxZ);
 
       if (playerHitsWorld(this, this.group.position.x, this.group.position.z)) {
         this.group.position.copy(old);
@@ -201,20 +225,27 @@
       }
 
       if (currentLevel === 'sofa') {
-        const handle = getNearestFreeHandle(this, false);
-        this.canGrab = !!handle && handle.distance < C.grabDistance;
-        this.group.userData.heart.visible = this.canGrab && !this.grabbing;
-
-        if (this.grabbing) {
-          const hp = handleWorld(this.grabSide);
-          const d = hp.distanceTo(this.group.position);
-          if (d > C.tetherDistance) {
-            this.release(false);
-            toast(`${this.name} lost the sofa. The sofa has boundaries.`);
-            beep(170, 0.05, 0.04);
-          }
+        if (world.arrange?.active) {
+          this.canGrab = !!nearestHomeAction(this);
+          this.group.userData.heart.visible = this.canGrab;
+          updateHomeHeldItem(this);
+          this.patience = clamp(this.patience + C.patienceRecovery * 0.55 * dt, 0, 100);
         } else {
-          this.patience = clamp(this.patience + C.patienceRecovery * dt, 0, 100);
+          const handle = getNearestFreeHandle(this, false);
+          this.canGrab = !!handle && handle.distance < C.grabDistance;
+          this.group.userData.heart.visible = this.canGrab && !this.grabbing;
+
+          if (this.grabbing) {
+            const hp = handleWorld(this.grabSide);
+            const d = hp.distanceTo(this.group.position);
+            if (d > C.tetherDistance) {
+              this.release(false);
+              toast(`${this.name} lost the sofa. The sofa has boundaries.`);
+              beep(170, 0.05, 0.04);
+            }
+          } else {
+            this.patience = clamp(this.patience + C.patienceRecovery * dt, 0, 100);
+          }
         }
       } else {
         this.canGrab = !!nearestDinnerAction(this);
@@ -223,6 +254,7 @@
         this.patience = clamp(this.patience + C.patienceRecovery * 0.45 * dt, 0, 100);
       }
 
+      updateCarryPose(this);
       updatePlayerFace(this);
     }
 
@@ -230,6 +262,10 @@
       if (!gameStarted || won) return;
       if (currentLevel === 'dinner') {
         dinnerInteract(this);
+        return;
+      }
+      if (world.arrange?.active) {
+        homeInteract(this);
         return;
       }
       if (this.grabbing) {
@@ -271,6 +307,12 @@
       if (this.heldItem) dropDinnerItem(this, true);
       this.heldItem = null;
       this.lastDinnerInteract = -9999;
+      this.homeHeldItem = null;
+      this.homeGrabItem = null;
+      this.homeGrabSide = null;
+      this.knockedUntil = 0;
+      const body = this.group.userData.body;
+      if (body) { body.rotation.z = 0; body.rotation.x = 0; body.position.y = 0.03; }
       updatePlayerFace(this);
     }
   }
@@ -294,7 +336,7 @@
     scene.fog = new THREE.Fog(0x160d20, 18, 39);
 
     camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(0, 12.5, 13.5);
+    camera.position.set(0, 17.2, 18.8);
     camera.lookAt(0, 0, 0);
 
     clock = new THREE.Clock();
@@ -352,83 +394,63 @@
   }
 
   function buildWorld() {
-    const floor = mesh(new THREE.BoxGeometry(20, 0.35, 12), mat(C.colors.floor, 0.92), false, true);
+    world.bounds = { minX: -14.45, maxX: 14.45, minZ: -8.45, maxZ: 8.45 };
+    const floor = mesh(new THREE.BoxGeometry(30, 0.35, 18), mat(0x3a263e, 0.92), false, true);
     floor.position.y = -0.22;
     scene.add(floor);
 
-    // HURDLE 1: cursed slippery rug
-    const rugMat = new THREE.MeshStandardMaterial({
-      color: C.colors.rug,
-      roughness: 0.75,
-      emissive: 0x29102f,
-      emissiveIntensity: 0.55
-    });
+    // Larger apartment floor details make the space read like a real room rather than an arena.
+    for (let x = -14; x <= 14; x += 2) {
+      const plank = mesh(new THREE.BoxGeometry(0.025, 0.01, 17.2), mat(0x51364e, 0.96), false, true);
+      plank.position.set(x, -0.025, 0); scene.add(plank);
+    }
+
+    const rugMat = new THREE.MeshStandardMaterial({ color: C.colors.rug, roughness: 0.75, emissive: 0x29102f, emissiveIntensity: 0.55 });
     world.rug = mesh(new THREE.BoxGeometry(C.rug.maxX - C.rug.minX, 0.035, C.rug.maxZ - C.rug.minZ), rugMat, false, true);
     world.rug.position.set((C.rug.minX + C.rug.maxX) / 2, 0.018, 0);
     scene.add(world.rug);
     addRugStripes();
 
-    // Cozy Corner: the final home for the sofa. No security switches.
-    const goalMat = new THREE.MeshStandardMaterial({
-      color: C.colors.goal,
-      roughness: 0.8,
-      transparent: true,
-      opacity: 0.34,
-      emissive: 0x4a1325,
-      emissiveIntensity: 0.75
-    });
-    world.goalRing = mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.035, 64), goalMat, false, true);
+    const goalMat = new THREE.MeshStandardMaterial({ color: C.colors.goal, roughness: 0.8, transparent: true, opacity: 0.34, emissive: 0x4a1325, emissiveIntensity: 0.75 });
+    world.goalRing = mesh(new THREE.CylinderGeometry(2.25, 2.25, 0.035, 64), goalMat, false, true);
     world.goalRing.position.set(C.goalCenter.x, 0.025, C.goalCenter.z);
     scene.add(world.goalRing);
-
     const heart = makeHeartMesh(0xffa0b8);
-    heart.scale.set(0.7, 0.7, 0.7);
-    heart.rotation.x = -Math.PI / 2;
+    heart.scale.set(0.78, 0.78, 0.78); heart.rotation.x = -Math.PI / 2;
     heart.position.set(C.goalCenter.x, 0.06, C.goalCenter.z);
-    heart.material.transparent = true;
-    heart.material.opacity = 0.75;
-    world.goalHeart = heart;
-    scene.add(heart);
+    heart.material.transparent = true; heart.material.opacity = 0.75;
+    world.goalHeart = heart; scene.add(heart);
 
-    // Divider wall leaves one generous-looking-but-annoying doorway.
-    addWall(0.1, -4.3, 0.45, 3.4, 'divider-north');
-    addWall(0.1, 4.3, 0.45, 3.4, 'divider-south');
+    // Divider wall with a wider doorway in the larger apartment.
+    addWall(0.1, -5.9, 0.45, 5.15, 'divider-north');
+    addWall(0.1, 5.9, 0.45, 5.15, 'divider-south');
+    addWall(-14.92, 0, 0.22, 18, 'outer-left', false);
+    addWall(14.92, 0, 0.22, 18, 'outer-right', false);
+    addWall(0, -8.92, 30, 0.22, 'outer-top', false);
+    addWall(0, 8.92, 30, 0.22, 'outer-bottom', false);
 
-    // Outer walls.
-    addWall(-9.92, 0, 0.22, 12, 'outer-left', false);
-    addWall(9.92, 0, 0.22, 12, 'outer-right', false);
-    addWall(0, -5.92, 20, 0.22, 'outer-top', false);
-    addWall(0, 5.92, 20, 0.22, 'outer-bottom', false);
-
-    // Doorway frame.
     const frameMat = mat(0xf8dce8, 0.72);
-    for (const z of [-2.55, 2.55]) {
-      const post = mesh(new THREE.BoxGeometry(0.7, 2.3, 0.45), frameMat);
-      post.position.set(0.05, 1.12, z);
-      scene.add(post);
+    for (const z of [-3.2, 3.2]) {
+      const post = mesh(new THREE.BoxGeometry(0.7, 2.4, 0.45), frameMat);
+      post.position.set(0.05, 1.16, z); scene.add(post);
     }
-    const lintel = mesh(new THREE.BoxGeometry(0.7, 0.35, 5.55), frameMat);
-    lintel.position.set(0.05, 2.15, 0);
-    scene.add(lintel);
+    const lintel = mesh(new THREE.BoxGeometry(0.7, 0.35, 6.85), frameMat);
+    lintel.position.set(0.05, 2.25, 0); scene.add(lintel);
 
-    // HURDLE 2: petty swinging door.
     world.door = makePettyDoor();
+    world.door.group.scale.z = 1.18;
     scene.add(world.door.group);
 
-    // Decorative / hazardous furniture.
-    addTable(-6.7, -4.35);
-    addPlant(-8.0, 4.25);
-    addLamp(8.35, -4.35);
-    addTinyCoffin(8.15, 4.25);
-    addMovingBoxes(-2.4, 4.35);
+    // The apartment already contains believable decor and moving boxes.
+    addTable(-10.8, -6.8);
+    addPlant(-12.4, 6.4);
+    addLamp(13.0, -6.5);
+    addMovingBoxes(-3.0, 6.9);
+    world.vase = makeFragileVase(6.9, 2.2); scene.add(world.vase.group);
 
-    // Fragile vase hurdle.
-    world.vase = makeFragileVase(5.15, 1.15);
-    scene.add(world.vase.group);
-
-    // Sofa.
     world.sofa = makeSofa();
-    world.sofa.position.set(-5.45, 0.55, 0);
+    world.sofa.scale.setScalar(1.12);
+    world.sofa.position.set(-9.6, 0.58, 0);
     world.sofa.rotation.y = Math.PI / 2;
     world.sofa.userData.homePos = world.sofa.position.clone();
     world.sofa.userData.homeRot = world.sofa.rotation.y;
@@ -436,27 +458,28 @@
     world.sofa.userData.lastBonk = -9999;
     scene.add(world.sofa);
 
-    // HURDLE 4-ish: criminal cat.
+    world.arrange = { active: false, index: 0, placed: 0, damageCount: 0, items: [], goals: [] };
+    buildHomeFurniture();
+
     world.cat = makeCat();
+    world.cat.group.position.x = 9.0;
     scene.add(world.cat.group);
 
-    // Ambient hearts.
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 34; i++) {
       const h = makeHeartMesh(i % 2 ? 0xff6f91 : 0x8f71ff);
-      const s = 0.06 + Math.random() * 0.08;
-      h.scale.set(s, s, s);
-      h.position.set(-9 + Math.random() * 18, 2.5 + Math.random() * 3.2, -5 + Math.random() * 10);
+      const ss = 0.05 + Math.random() * 0.075;
+      h.scale.set(ss, ss, ss);
+      h.position.set(-13.5 + Math.random() * 27, 2.8 + Math.random() * 3.7, -8 + Math.random() * 16);
       h.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
-      h.material.transparent = true;
-      h.material.opacity = 0.18;
+      h.material.transparent = true; h.material.opacity = 0.13;
       scene.add(h);
     }
   }
 
   function addRugStripes() {
     for (let i = 0; i < 7; i++) {
-      const stripe = mesh(new THREE.BoxGeometry(0.12, 0.012, 5.7), mat(i % 2 ? 0x78417f : 0x47234f, 0.95), false, true);
-      stripe.position.set(-8.1 + i * 0.82, 0.045, 0);
+      const stripe = mesh(new THREE.BoxGeometry(0.12, 0.012, 7.3), mat(i % 2 ? 0x78417f : 0x47234f, 0.95), false, true);
+      stripe.position.set(C.rug.minX + 0.65 + i * 1.15, 0.045, 0);
       stripe.rotation.y = 0.12;
       scene.add(stripe);
     }
@@ -479,9 +502,15 @@
     pink.position.set(7, 3, 0);
     scene.add(pink);
 
-    const blue = new THREE.PointLight(0x698cff, 12, 10, 2);
-    blue.position.set(-6, 3, -2);
+    const blue = new THREE.PointLight(0x698cff, 16, 15, 2);
+    blue.position.set(-9, 3.5, -2);
     scene.add(blue);
+    const warm = new THREE.PointLight(0xffb77e, 22, 18, 2);
+    warm.position.set(10.5, 4.2, 0);
+    scene.add(warm);
+    const cozy = new THREE.PointLight(0xff7da8, 13, 14, 2);
+    cozy.position.set(7.5, 3.0, 6.0);
+    scene.add(cozy);
   }
 
   function addWall(x, z, w, d, name, visible = true) {
@@ -639,150 +668,432 @@
     return { group, cooldown: 0, phase: Math.random() * 6 };
   }
 
-  function makeCutePlayer(color, first) {
+  function homeItemGroup(def) {
+    const g = new THREE.Group();
+    const wood = mat(def.color || 0xb87963, 0.82);
+    const gold = mat(0xffd06f, 0.58, 0.18);
+    if (def.kind === 'coffee') {
+      const top = mesh(new THREE.BoxGeometry(2.45, 0.18, 1.25), wood); top.position.y = 0.78; g.add(top);
+      for (const sx of [-1,1]) for (const sz of [-1,1]) { const leg=mesh(new THREE.BoxGeometry(.13,.72,.13),mat(0x70483e,.86)); leg.position.set(sx*.92,.36,sz*.42); g.add(leg); }
+    } else if (def.kind === 'bookshelf') {
+      const frame = mesh(new THREE.BoxGeometry(1.65, 2.35, 0.52), wood); frame.position.y=1.18; g.add(frame);
+      for (let i=0;i<3;i++) { const shelf=mesh(new THREE.BoxGeometry(1.48,.09,.6),mat(0x6e473e,.84)); shelf.position.set(0,.48+i*.62,0); g.add(shelf); }
+      for (let i=0;i<7;i++) { const book=mesh(new THREE.BoxGeometry(.14,.32,.32),mat([0xe47d87,0x6ba4c8,0xd8a95d,0x8f74b8][i%4],.9)); book.position.set(-.58+i*.18,.68+(i%2)*.62,.12); g.add(book); }
+    } else if (def.kind === 'lamp') {
+      const base=mesh(new THREE.CylinderGeometry(.34,.39,.11,18),mat(0x665865,.48,.18)); base.position.y=.06; g.add(base);
+      const pole=mesh(new THREE.CylinderGeometry(.045,.055,1.75,10),mat(0x8f8990,.38,.35)); pole.position.y=.92; g.add(pole);
+      const shade=mesh(new THREE.ConeGeometry(.5,.65,20,1,true),mat(0xf7b7ca,.72)); shade.position.y=1.85; g.add(shade);
+    } else if (def.kind === 'plant') {
+      const pot=mesh(new THREE.CylinderGeometry(.34,.45,.55,16),mat(0xd98c84,.92)); pot.position.y=.28; g.add(pot);
+      for(let i=0;i<8;i++){ const leaf=mesh(new THREE.SphereGeometry(.22,10,8),mat(0x67ba84,.92)); leaf.scale.set(.5,1.45,.34); leaf.position.set(Math.sin(i*1.7)*.27,.72+(i%3)*.12,Math.cos(i*1.7)*.24); leaf.rotation.z=(i-3.5)*.12; g.add(leaf); }
+    } else if (def.kind === 'side') {
+      const top=mesh(new THREE.CylinderGeometry(.58,.58,.13,22),wood); top.position.y=.72; g.add(top);
+      const leg=mesh(new THREE.CylinderGeometry(.12,.16,.7,12),mat(0x70483e,.86)); leg.position.y=.35; g.add(leg);
+    } else if (def.kind === 'rug') {
+      const roll=mesh(new THREE.CylinderGeometry(.35,.35,1.7,18),mat(0xc87c9f,.95)); roll.rotation.z=Math.PI/2; roll.position.y=.38; g.add(roll);
+      for(const x of [-.72,.72]){ const band=mesh(new THREE.TorusGeometry(.35,.035,8,20),gold); band.rotation.y=Math.PI/2; band.position.set(x,.38,0); g.add(band); }
+    }
+    if (def.heavy) {
+      for (const sx of [-1,1]) { const h=mesh(new THREE.TorusGeometry(.12,.04,9,18),gold); h.rotation.x=Math.PI/2; h.position.set(sx*(def.hx+.16),def.handleY||.68,0); g.add(h); }
+    }
+    return g;
+  }
+
+  function buildHomeFurniture() {
+    const a = world.arrange;
+    if (!a) return;
+    const defs = [
+      { name:'coffee', label:'COFFEE TABLE', kind:'coffee', heavy:true, fragile:false, hx:1.25,hz:.66, handleY:.76, start:[3.2,0,-5.9], goal:[9.6,0,-2.8], color:0xb77b69 },
+      { name:'bookshelf', label:'BOOKSHELF', kind:'bookshelf', heavy:true, fragile:false, hx:.85,hz:.4, handleY:.92, start:[4.6,0,5.8], goal:[6.9,0,6.9], color:0x9d6a59 },
+      { name:'rugroll', label:'LIVING RUG', kind:'rug', heavy:false, fragile:false, hx:.9,hz:.4, start:[2.7,0,3.5], goal:[9.0,0,3.4], color:0xc87c9f },
+      { name:'lamp', label:'FLOOR LAMP', kind:'lamp', heavy:false, fragile:true, hx:.45,hz:.45, start:[4.9,0,-3.2], goal:[12.7,0,-5.2], color:0xf7b7ca },
+      { name:'plant', label:'PLANT', kind:'plant', heavy:false, fragile:true, hx:.48,hz:.48, start:[3.4,0,6.6], goal:[12.3,0,5.5], color:0x67ba84 },
+      { name:'side', label:'SIDE TABLE', kind:'side', heavy:false, fragile:true, hx:.62,hz:.62, start:[5.4,0,2.0], goal:[12.0,0,2.75], color:0xc0906d }
+    ];
+    for (const def of defs) {
+      const group = homeItemGroup(def); group.position.set(...def.start); scene.add(group);
+      const goalMat = new THREE.MeshStandardMaterial({color:def.fragile?0xffb7c8:0xffd06f,transparent:true,opacity:.11,emissive:def.fragile?0x522034:0x4f3d16,emissiveIntensity:.2,roughness:.88});
+      const goal = mesh(new THREE.CylinderGeometry(Math.max(def.hx,def.hz)+.48,Math.max(def.hx,def.hz)+.48,.025,32),goalMat,false,true);
+      goal.position.set(def.goal[0],.018,def.goal[2]); goal.visible=false; scene.add(goal);
+      const tag=makeTextSprite(def.label, def.fragile?'rgba(92,41,54,.9)':'rgba(84,66,31,.9)','#fff8eb'); tag.position.set(def.goal[0],1.15,def.goal[2]); tag.scale.multiplyScalar(.58); tag.visible=false; scene.add(tag);
+      const item={...def,group,goalMesh:goal,goalTag:tag,placed:false,heldBy:null,damage:0,broken:false,lastImpact:-9999,homePos:new THREE.Vector3(...def.start), homeRot:0};
+      group.userData.homeItem=item; a.items.push(item); a.goals.push(goal);
+    }
+  }
+
+  function activeHomeItem() { return world.arrange?.items?.[world.arrange.index] || null; }
+  function homeItemOBB(item, pos=item.group.position, angle=item.group.rotation.y) { return {x:pos.x,z:pos.z,hx:item.hx,hz:item.hz,angle}; }
+  function homeHandleWorld(item, side, pos=item.group.position, angle=item.group.rotation.y) {
+    const r=rotateXZ(side*(item.hx+.18),0,angle); return new THREE.Vector3(pos.x+r.x,item.handleY||.7,pos.z+r.z);
+  }
+  function nearestHomeHandle(player,item) {
+    let best=null;
+    for(const side of [-1,1]){ const hp=homeHandleWorld(item,side); const occupied=players.some(q=>q!==player&&q.homeGrabItem===item&&q.homeGrabSide===side); const distance=hp.distanceTo(player.group.position); if(!best||distance<best.distance) best={side,pos:hp,distance,occupied}; }
+    if(best?.occupied){ const side=-best.side,hp=homeHandleWorld(item,side); const occupied=players.some(q=>q!==player&&q.homeGrabItem===item&&q.homeGrabSide===side); if(!occupied) return {side,pos:hp,distance:hp.distanceTo(player.group.position),occupied:false}; }
+    return best;
+  }
+  function homeItemCollides(item,pos,angle=item.group.rotation.y){
+    const o=homeItemOBB(item,pos,angle);
+    for(const c of world.colliders) if(obbIntersectsOBB(o,aabbAsOBB(c))) return true;
+    if(world.door&&obbIntersectsOBB(o,doorOBB())) return true;
+    if(world.sofa&&obbIntersectsOBB(o,sofaOBB())) return true;
+    for(const other of world.arrange?.items||[]){
+      if(other===item||other.broken||!other.group.visible) continue;
+      if(obbIntersectsOBB(o,homeItemOBB(other))) return true;
+    }
+    return false;
+  }
+
+  function nearestHomeAction(player) {
+    const item=activeHomeItem(); if(!world.arrange?.active||!item||item.placed||item.broken) return null;
+    if(player.homeHeldItem===item) {
+      const dx=item.group.position.x-item.goal[0], dz=item.group.position.z-item.goal[2];
+      return {type:(dx*dx+dz*dz<1.7*1.7)?'place-light':'drop-light',item};
+    }
+    if(player.homeGrabItem===item) return {type:'release-heavy',item};
+    if(item.heavy){ const h=nearestHomeHandle(player,item); if(h&&h.distance<2.0) return {type:'grab-heavy',item,side:h.side,occupied:h.occupied}; }
+    else if(distanceXZ(player.group.position,item.group.position)<1.65) return {type:'pick-light',item};
+    return null;
+  }
+
+  function homeInteract(player) {
+    const action=nearestHomeAction(player);
+    if(!action){ const item=activeHomeItem(); if(item) toast(`${player.name}: arrange ${item.label}. ${item.heavy?'Heavy item — both of you grab a gold handle.':'Get close and press interact to carry it.'}`); return; }
+    const item=action.item;
+    if(action.type==='pick-light'){ player.homeHeldItem=item; item.heldBy=player; item.group.position.y=Math.max(.35,item.group.position.y); toast(`${player.name} picked up ${item.label}.${item.fragile?' Easy does it — it is fragile.':''}`); beep(520,.045,.025); }
+    else if(action.type==='drop-light'){ dropHomeItem(player,false); }
+    else if(action.type==='place-light'){ placeHomeItem(item,player); }
+    else if(action.type==='grab-heavy'){
+      if(action.occupied){ toast('That handle is occupied. Use the other side.'); return; }
+      player.homeGrabItem=item; player.homeGrabSide=action.side; toast(`${player.name} grabbed ${action.side<0?'left':'right'} side of ${item.label}.`); beep(470,.04,.026);
+    } else if(action.type==='release-heavy'){ player.homeGrabItem=null; player.homeGrabSide=null; toast(`${player.name} released ${item.label}.`); }
+  }
+
+  function updateHomeHeldItem(player) {
+    const item=player.homeHeldItem; if(!item) return;
+    const target=player.group.position.clone().addScaledVector(player.facing,.78); target.y=item.kind==='lamp'?1.0:.52;
+    const hit=homeItemCollides(item,target,item.group.rotation.y);
+    if(!hit) item.group.position.lerp(target,.34);
+    else if(item.fragile && player.velocity.length()>1.15) damageHomeItem(item,1);
+    item.group.rotation.y=angleDamp(item.group.rotation.y,Math.atan2(player.facing.x,player.facing.z),10,.016);
+  }
+
+  function dropHomeItem(player,hard=false) {
+    const item=player.homeHeldItem; if(!item) return;
+    item.heldBy=null; player.homeHeldItem=null; item.group.position.y=0;
+    const speed=player.velocity.length();
+    if(item.fragile&&(hard||speed>1.8)) damageHomeItem(item,hard?2:1);
+    else { toast(`${player.name} put ${item.label} down.`); beep(210,.04,.02); }
+  }
+
+  function damageHomeItem(item,severity=1) {
+    if(!item||item.broken||!item.fragile) return;
+    if(performance.now()-item.lastImpact<500) return; item.lastImpact=performance.now();
+    item.damage+=severity; chaos+=severity*4; cameraShake=Math.max(cameraShake,.22);
+    spawnShardParticles(item.group.position.clone().setY(.55)); beep(360,.045,.04); setTimeout(()=>beep(190,.07,.03),45);
+    if(item.damage<2){
+      item.group.traverse(o=>{ if(o.material?.color) o.material.color.multiplyScalar(.68); });
+      toast(`${item.label} CRACKED. Maybe stop treating decor like a football.`); setFluffles('Sensitive furniture has registered a formal complaint.');
+    } else {
+      item.broken=true; item.group.visible=false; world.arrange.damageCount+=1;
+      for(const p of players){ if(p.homeHeldItem===item)p.homeHeldItem=null; if(p.homeGrabItem===item){p.homeGrabItem=null;p.homeGrabSide=null;} }
+      toast(`${item.label} BROKE. A suspicious replacement is arriving.`); setFluffles('Property damage detected. Deposit optimism reduced.');
+      setTimeout(()=>{ if(currentLevel!=='sofa'||item.placed)return; item.broken=false; item.damage=0; item.group.visible=true; item.group.position.copy(item.homePos); item.group.rotation.y=item.homeRot; },1800);
+    }
+  }
+
+  function placeHomeItem(item,player=null) {
+    if(!item||item.placed) return;
+    item.placed=true; item.heldBy=null; item.group.position.set(item.goal[0],0,item.goal[2]); item.group.rotation.y=0;
+    if(player) player.homeHeldItem=null;
+    for(const p of players){ if(p.homeGrabItem===item){p.homeGrabItem=null;p.homeGrabSide=null;} }
+    item.goalMesh.visible=false; item.goalTag.visible=false;
+    world.arrange.placed+=1; chaos=Math.max(0,chaos-.5); beep(680,.065,.035); setTimeout(()=>beep(880,.07,.028),60);
+    toast(`${item.label} PLACED. THE APARTMENT IS BECOMING SUSPICIOUSLY LIVABLE.`);
+    world.arrange.index+=1;
+    activateHomeTask();
+  }
+
+  function activateHomeTask() {
+    const a=world.arrange; if(!a?.active)return;
+    a.items.forEach((it,i)=>{ it.goalMesh.visible=i===a.index&&!it.placed; it.goalTag.visible=i===a.index&&!it.placed; if(it.goalMesh.visible){it.goalMesh.material.opacity=.28;it.goalMesh.material.emissiveIntensity=.75;} });
+    const item=activeHomeItem();
+    if(!item){ finishMovingTrial(); return; }
+    $('objective').textContent=`Arrange ${item.label}: ${item.heavy?'BOTH grab a gold handle and carry it':'carry it carefully'} to the glowing spot.${item.fragile?' Fragile!':''}`;
+    $('crisis-count').textContent=`${a.index+2}/${a.items.length+1}`;
+    document.querySelectorAll('.crisis-step').forEach((el,i)=>{ el.classList.toggle('active',i===a.index+1); el.classList.toggle('done',i<a.index+1); });
+    setFluffles(item.fragile ? `${item.label} is fragile. Gravity has joined the inspection.` : item.heavy ? `${item.label} is heavy. This is a two-human problem.` : `${item.label}: one carrier, one critic. Efficient.`);
+  }
+
+  function beginHomeArrangement() {
+    const a=world.arrange; if(!a||a.active)return;
+    a.active=true; a.index=0; winHold=0;
+    for(const p of players) p.release(false);
+    world.goalRing.material.opacity=.13; world.goalHeart.material.opacity=.28;
+    configureHomeTrack(); activateHomeTask();
+    toast('SOFA PLACED. NOW ARRANGE THE REST OF YOUR HOME.');
+  }
+
+  function configureHomeTrack() {
+    const labels=['Sofa',...world.arrange.items.map(i=>i.label.replace('FLOOR ','').replace('LIVING ',''))];
+    $('crisis-track').innerHTML=labels.map((label,i)=>`<div class="crisis-step${i===0?' done':''}" data-step="${i}"><b>${i+1}</b><span>${label}</span></div>`).join('');
+  }
+
+  function updateHeavyHomeItem(item,dt) {
+    const grabbers=players.filter(p=>p.homeGrabItem===item);
+    if(grabbers.length<2) return;
+    const left=grabbers.find(p=>p.homeGrabSide===-1), right=grabbers.find(p=>p.homeGrabSide===1); if(!left||!right)return;
+    const dx=right.group.position.x-left.group.position.x,dz=right.group.position.z-left.group.position.z;
+    let angle=item.group.rotation.y; if(dx*dx+dz*dz>.1) angle=Math.atan2(-dz,dx);
+    const pos=new THREE.Vector3();
+    for(const p of [left,right]){ const r=rotateXZ(p.homeGrabSide*(item.hx+.18),0,angle); pos.x+=p.group.position.x-r.x; pos.z+=p.group.position.z-r.z; }
+    pos.multiplyScalar(.5); pos.y=0;
+    const cand=item.group.position.clone(); cand.x=damp(cand.x,pos.x,6.3,dt); cand.z=damp(cand.z,pos.z,6.3,dt); const candA=angleDamp(item.group.rotation.y,angle,6,dt);
+    if(!homeItemCollides(item,cand,candA)){ item.group.position.x=cand.x;item.group.position.z=cand.z;item.group.rotation.y=candA; }
+    else { chaos+=dt*.4; players.forEach(p=>{if(p.homeGrabItem===item)p.patience=clamp(p.patience-.8*dt,0,100);}); }
+    const gx=item.group.position.x-item.goal[0],gz=item.group.position.z-item.goal[2]; if(gx*gx+gz*gz<1.25*1.25) placeHomeItem(item);
+  }
+
+  function updateHomeArrangement(dt) {
+    const item=activeHomeItem(); if(!world.arrange?.active||!item)return;
+    if(item.heavy) updateHeavyHomeItem(item,dt);
+    if(item.goalMesh?.visible){ const pulse=1+Math.sin(elapsed*4)*.08; item.goalMesh.scale.setScalar(pulse); }
+    $('grab-hint').classList.toggle('hidden',!players.some(p=>p.canGrab));
+  }
+
+  function knockPlayer(player,duration=1.15) {
+    if(!player)return; player.knockedUntil=Math.max(player.knockedUntil||0,performance.now()+duration*1000); player.velocity.multiplyScalar(.28);
+    if(player.homeHeldItem) dropHomeItem(player,true);
+    if(player.homeGrabItem){ player.homeGrabItem=null;player.homeGrabSide=null; }
+  }
+
+  function skinToneHex(name) {
+    return ({ fair: 0xffdfd2, warm: 0xf2c4a7, medium: 0xd9a17c, brown: 0xb97855, deep: 0x7f4d3b })[name] || 0xf2c4a7;
+  }
+
+  function makeDupatta(color = 0xe884a6) {
+    const g = new THREE.Group();
+    const cloth = new THREE.MeshStandardMaterial({ color, roughness: 0.92, side: THREE.DoubleSide, transparent: true, opacity: 0.88 });
+    const shoulder = mesh(new THREE.TorusGeometry(0.36, 0.035, 8, 22, Math.PI), cloth);
+    shoulder.rotation.x = Math.PI / 2;
+    shoulder.rotation.z = Math.PI;
+    shoulder.position.set(0, 1.02, 0.02);
+    g.add(shoulder);
+    const left = mesh(new THREE.BoxGeometry(0.18, 0.95, 0.035), cloth);
+    left.position.set(-0.34, 0.62, 0.05);
+    left.rotation.z = -0.12;
+    g.add(left);
+    const right = mesh(new THREE.BoxGeometry(0.18, 0.82, 0.035), cloth);
+    right.position.set(0.34, 0.68, 0.05);
+    right.rotation.z = 0.16;
+    g.add(right);
+    return g;
+  }
+
+  function makeCutePlayer(color, first, profile = {}) {
     const group = new THREE.Group();
     const body = new THREE.Group();
     group.add(body);
     group.userData.body = body;
 
-    const bodyMat = mat(color, 0.72);
-    const skin = mat(0xffd5c7, 0.86);
-    const dark = mat(first ? 0x34263b : 0x46283b, 0.9);
-    const shoeMat = mat(0x2e2134, 0.8);
+    const skinHex = skinToneHex(profile.skin || (first ? 'warm' : 'medium'));
+    const skin = mat(skinHex, 0.86);
+    const hairColor = first ? 0x2d2432 : 0x3c2533;
+    const dark = mat(hairColor, 0.9);
+    const outfit = profile.outfit || (first ? 'casual' : 'salwar');
+    const baseColor = first ? color : (outfit === 'salwar' ? 0xd96f96 : color);
+    const bodyMat = mat(baseColor, 0.76);
+    const shoeMat = mat(first ? 0x283344 : 0x4d3140, 0.8);
 
-    const torso = mesh(new THREE.CapsuleGeometry(0.34, 0.62, 8, 16), bodyMat);
-    torso.position.y = 0.67;
+    // Slightly bigger head + eyes gives the characters a softer toy-like silhouette.
+    const torso = mesh(new THREE.CapsuleGeometry(0.35, outfit === 'salwar' ? 0.7 : 0.62, 8, 16), bodyMat);
+    torso.position.y = 0.69;
     body.add(torso);
 
     const belly = mesh(new THREE.SphereGeometry(0.24, 16, 12), mat(first ? 0xaedfff : 0xffc4d2, 0.84));
-    belly.scale.set(1.2, 1, 0.9);
-    belly.position.set(0, 0.52, 0.21);
+    belly.scale.set(1.18, 0.95, 0.86);
+    belly.position.set(0, 0.53, 0.22);
+    belly.visible = outfit === 'casual';
     body.add(belly);
 
-    const head = mesh(new THREE.SphereGeometry(0.42, 24, 18), skin);
-    head.position.y = 1.46;
+    // Traditional clothing overlays.
+    const traditional = new THREE.Group();
+    if (outfit === 'kurta') {
+      const kurta = mesh(new THREE.BoxGeometry(0.72, 0.92, 0.42), mat(first ? 0x5d9fc6 : 0xc9799a, 0.9));
+      kurta.position.set(0, 0.58, 0);
+      kurta.scale.y = 1.05;
+      traditional.add(kurta);
+      const collar = mesh(new THREE.BoxGeometry(0.18, 0.2, 0.04), mat(0xffe1b8, 0.82));
+      collar.position.set(0, 1.0, 0.23);
+      traditional.add(collar);
+    }
+    if (outfit === 'salwar') {
+      const kameez = mesh(new THREE.BoxGeometry(0.78, 1.02, 0.44), mat(0xd96f96, 0.9));
+      kameez.position.set(0, 0.58, 0);
+      traditional.add(kameez);
+      const hem = mesh(new THREE.BoxGeometry(0.86, 0.1, 0.46), mat(0xf1b263, 0.84));
+      hem.position.set(0, 0.12, 0);
+      traditional.add(hem);
+      for (const sx of [-1, 1]) {
+        const salwar = mesh(new THREE.CapsuleGeometry(0.12, 0.48, 5, 9), mat(0xf4dccd, 0.92));
+        salwar.position.set(sx * 0.18, 0.24, 0);
+        traditional.add(salwar);
+      }
+      const neckline = mesh(new THREE.TorusGeometry(0.13, 0.018, 8, 20, Math.PI), mat(0xffd477, 0.72));
+      neckline.rotation.x = Math.PI / 2;
+      neckline.position.set(0, 1.02, 0.23);
+      traditional.add(neckline);
+    }
+    body.add(traditional);
+
+    const head = mesh(new THREE.SphereGeometry(0.46, 26, 20), skin);
+    head.position.y = 1.5;
     body.add(head);
 
-    const hair = mesh(new THREE.SphereGeometry(0.43, 24, 18, 0, Math.PI * 2, 0, Math.PI / 2.05), dark);
-    hair.position.set(0, 1.59, 0);
+    const hair = mesh(new THREE.SphereGeometry(0.465, 24, 18, 0, Math.PI * 2, 0, Math.PI / 2.0), dark);
+    hair.position.set(0, 1.65, -0.01);
     hair.rotation.x = 0.08;
     body.add(hair);
 
-    let bun = null;
-    if (!first) {
-      bun = mesh(new THREE.SphereGeometry(0.17, 16, 12), dark);
-      bun.position.set(0.28, 1.84, 0.02);
+    if (first) {
+      const tuft = mesh(new THREE.ConeGeometry(0.11, 0.26, 9), dark);
+      tuft.position.set(-0.12, 1.98, 0.03);
+      tuft.rotation.z = -0.38;
+      body.add(tuft);
+    } else {
+      const bun = mesh(new THREE.SphereGeometry(0.18, 16, 12), dark);
+      bun.position.set(0.3, 1.9, 0.01);
       body.add(bun);
+      const sideLock = mesh(new THREE.CapsuleGeometry(0.055, 0.42, 5, 8), dark);
+      sideLock.position.set(-0.38, 1.45, 0.02);
+      sideLock.rotation.z = -0.12;
+      body.add(sideLock);
     }
 
     const eyes = [];
-    for (const ex of [-0.15, 0.15]) {
-      const eye = mesh(new THREE.SphereGeometry(0.043, 12, 8), mat(0x211824, 0.65));
-      eye.position.set(ex, 1.5, 0.39);
+    for (const ex of [-0.16, 0.16]) {
+      const white = mesh(new THREE.SphereGeometry(0.066, 12, 9), mat(0xfffbfa, 0.55));
+      white.scale.set(1.0, 1.18, 0.45);
+      white.position.set(ex, 1.54, 0.42);
+      body.add(white);
+      const eye = mesh(new THREE.SphereGeometry(0.036, 12, 8), mat(0x211824, 0.65));
+      eye.position.set(ex, 1.54, 0.455);
       body.add(eye);
       eyes.push(eye);
     }
 
     const brows = [];
-    for (const ex of [-0.15, 0.15]) {
-      const brow = mesh(new THREE.BoxGeometry(0.12, 0.025, 0.025), mat(0x3a2533, 0.8));
-      brow.position.set(ex, 1.62, 0.402);
+    for (const ex of [-0.16, 0.16]) {
+      const brow = mesh(new THREE.BoxGeometry(0.13, 0.025, 0.025), mat(0x3a2533, 0.8));
+      brow.position.set(ex, 1.68, 0.43);
       body.add(brow);
       brows.push(brow);
     }
 
-    const blushMat = new THREE.MeshBasicMaterial({ color: 0xff7f9e, transparent: true, opacity: 0.62 });
+    if (!first) {
+      for (const sx of [-1, 1]) {
+        const lash = mesh(new THREE.BoxGeometry(0.045, 0.012, 0.012), mat(0x2b1823, 0.8));
+        lash.position.set(sx * 0.215, 1.59, 0.448);
+        lash.rotation.z = sx * 0.45;
+        body.add(lash);
+      }
+    }
+
+    const blushMat = new THREE.MeshBasicMaterial({ color: 0xff7f9e, transparent: true, opacity: 0.58 });
     const blushes = [];
-    for (const ex of [-0.26, 0.26]) {
-      const blush = mesh(new THREE.SphereGeometry(0.055, 10, 8), blushMat, false, false);
-      blush.scale.set(1.5, 0.55, 0.35);
-      blush.position.set(ex, 1.39, 0.385);
+    for (const ex of [-0.29, 0.29]) {
+      const blush = mesh(new THREE.SphereGeometry(0.058, 10, 8), blushMat, false, false);
+      blush.scale.set(1.6, 0.55, 0.32);
+      blush.position.set(ex, 1.41, 0.41);
       body.add(blush);
       blushes.push(blush);
     }
 
-    const mouth = mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 18, Math.PI), mat(0x7d4555, 0.6), false, false);
-    mouth.position.set(0, 1.29, 0.385);
+    const mouth = mesh(new THREE.TorusGeometry(0.058, 0.012, 8, 18, Math.PI), mat(0x7d4555, 0.6), false, false);
+    mouth.position.set(0, 1.32, 0.42);
     mouth.rotation.z = Math.PI;
     body.add(mouth);
 
     const arms = [];
     for (const sx of [-1, 1]) {
-      const arm = mesh(new THREE.CapsuleGeometry(0.09, 0.48, 6, 10), skin);
-      arm.position.set(sx * 0.42, 0.77, 0);
+      const sleeveColor = outfit === 'salwar' ? 0xd96f96 : outfit === 'kurta' ? (first ? 0x5d9fc6 : 0xc9799a) : skinHex;
+      const arm = mesh(new THREE.CapsuleGeometry(0.09, 0.5, 6, 10), mat(sleeveColor, 0.82));
+      arm.position.set(sx * 0.43, 0.79, 0);
       arm.rotation.z = sx * 0.2;
       body.add(arm);
       arms.push(arm);
+      const hand = mesh(new THREE.SphereGeometry(0.095, 10, 8), skin);
+      hand.position.set(sx * 0.49, 0.49, 0.02);
+      body.add(hand);
     }
 
     const feet = [];
     for (const sx of [-1, 1]) {
-      const foot = mesh(new THREE.SphereGeometry(0.13, 12, 8), shoeMat);
-      foot.scale.set(1, 0.7, 1.35);
-      foot.position.set(sx * 0.18, 0.08, 0.08);
+      const foot = mesh(new THREE.SphereGeometry(0.135, 12, 8), shoeMat);
+      foot.scale.set(1, 0.7, 1.42);
+      foot.position.set(sx * 0.18, 0.08, 0.09);
       body.add(foot);
       feet.push(foot);
     }
 
     const apron = new THREE.Group();
     apron.visible = false;
-    const apronFront = mesh(new THREE.BoxGeometry(0.42, 0.56, 0.03), mat(0xfff2d8, 0.9));
-    apronFront.position.set(0, 0.56, 0.34);
+    const apronFront = mesh(new THREE.BoxGeometry(0.43, 0.58, 0.03), mat(0xfff2d8, 0.9));
+    apronFront.position.set(0, 0.58, 0.35);
     apron.add(apronFront);
     const apronPocket = mesh(new THREE.BoxGeometry(0.22, 0.12, 0.035), mat(0xf0d6af, 0.88));
-    apronPocket.position.set(0, 0.34, 0.355);
+    apronPocket.position.set(0, 0.36, 0.365);
     apron.add(apronPocket);
-    const neckBand = mesh(new THREE.TorusGeometry(0.16, 0.015, 8, 18, Math.PI), mat(0xf0d6af, 0.88));
-    neckBand.rotation.x = Math.PI / 2;
-    neckBand.position.set(0, 1.02, 0.18);
-    apron.add(neckBand);
     body.add(apron);
 
     const runnerBand = new THREE.Group();
     runnerBand.visible = false;
-    const sash = mesh(new THREE.BoxGeometry(0.13, 0.85, 0.06), mat(first ? 0x6ac0f4 : 0xffc680, 0.82));
-    sash.position.set(0.13, 0.74, 0.28);
+    const sash = mesh(new THREE.BoxGeometry(0.13, 0.86, 0.06), mat(first ? 0x6ac0f4 : 0xffc680, 0.82));
+    sash.position.set(0.13, 0.76, 0.3);
     sash.rotation.z = 0.55;
     runnerBand.add(sash);
-    const pouch = mesh(new THREE.BoxGeometry(0.22, 0.18, 0.12), mat(0x896a4a, 0.78));
-    pouch.position.set(-0.16, 0.36, 0.25);
-    runnerBand.add(pouch);
     body.add(runnerBand);
 
     const chefHat = new THREE.Group();
     chefHat.visible = false;
-    const brim = mesh(new THREE.CylinderGeometry(0.19, 0.22, 0.08, 16), mat(0xfffaf5, 0.8));
-    brim.position.y = 1.93;
+    const brim = mesh(new THREE.CylinderGeometry(0.2, 0.23, 0.08, 16), mat(0xfffaf5, 0.8));
+    brim.position.y = 1.98;
     chefHat.add(brim);
     for (const [dx, dz] of [[0,0],[0.1,0.05],[-0.1,0.03],[0.05,-0.08],[-0.06,-0.06]]) {
       const puff = mesh(new THREE.SphereGeometry(0.13, 14, 10), mat(0xffffff, 0.82));
-      puff.position.set(dx, 2.05 + Math.random()*0.05, dz);
+      puff.position.set(dx, 2.1 + Math.random()*0.04, dz);
       chefHat.add(puff);
     }
     body.add(chefHat);
 
+    let dupatta = null;
+    if (profile.dupatta) {
+      dupatta = makeDupatta(outfit === 'salwar' ? 0xf2b15e : 0xd987a8);
+      body.add(dupatta);
+    }
+
     let sunflower = null;
-    if (!first) {
+    if (profile.sunflower !== false && !first) {
       sunflower = new THREE.Group();
-      const center = mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 12), mat(0x5f4329, 0.78));
+      const center = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 12), mat(0x5f4329, 0.78));
       center.rotation.x = Math.PI / 2;
       sunflower.add(center);
       for (let i = 0; i < 10; i++) {
-        const petal = mesh(new THREE.SphereGeometry(0.045, 10, 8), mat(0xffd86a, 0.8));
-        petal.scale.set(0.7, 1.25, 0.28);
+        const petal = mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0xffd86a, 0.8));
+        petal.scale.set(0.72, 1.3, 0.28);
         const a = (Math.PI * 2 * i) / 10;
-        petal.position.set(Math.cos(a) * 0.095, Math.sin(a) * 0.095, -0.004);
+        petal.position.set(Math.cos(a) * 0.105, Math.sin(a) * 0.105, -0.004);
         petal.rotation.z = a;
         sunflower.add(petal);
       }
-      sunflower.position.set(0.38, 1.86, 0.2);
+      sunflower.position.set(0.4, 1.92, 0.21);
       sunflower.rotation.y = -0.25;
       body.add(sunflower);
     }
 
     const heart = makeHeartMesh(0xffffff);
     heart.scale.set(0.12, 0.12, 0.12);
-    heart.position.set(0, 2.18, 0);
+    heart.position.set(0, 2.28, 0);
     heart.visible = false;
     group.add(heart);
 
@@ -797,8 +1108,19 @@
     group.userData.runnerBand = runnerBand;
     group.userData.chefHat = chefHat;
     group.userData.sunflower = sunflower;
+    group.userData.dupatta = dupatta;
     group.userData.head = head;
     return group;
+  }
+
+  function updateCarryPose(player) {
+    const arms = player.group.userData.arms || [];
+    const carrying = !!(player.grabbing || player.homeHeldItem || player.homeGrabItem || player.heldItem);
+    arms.forEach((arm, i) => {
+      const targetX = carrying ? -0.82 : 0;
+      arm.rotation.x = damp(arm.rotation.x || 0, targetX, 12, 0.016);
+      if (carrying && performance.now() >= (player.knockedUntil || 0)) arm.rotation.z = (i === 0 ? -1 : 1) * 0.12;
+    });
   }
 
   function updatePlayerFace(player) {
@@ -821,7 +1143,7 @@
     if (player.group.userData.blushes) {
       for (const blush of player.group.userData.blushes) blush.material.opacity = 0.36 + (1 - t) * 0.28;
     }
-    if (player.group.userData.body) {
+    if (player.group.userData.body && performance.now() >= (player.knockedUntil || 0)) {
       player.group.userData.body.rotation.z = (player.id === 1 ? 1 : -1) * (t - 0.15) * 0.05;
     }
     if (player.group.userData.sunflower) {
@@ -863,8 +1185,8 @@
       setTimeout(() => { arm.rotation.z = 0.72; }, 95);
       setTimeout(() => { arm.rotation.z = start; }, 240);
     }
-    target.group.userData.body.rotation.x = -0.16;
-    setTimeout(() => { if (target.group?.userData?.body) target.group.userData.body.rotation.x = 0; }, 220);
+    knockPlayer(target, 1.2);
+    target.group.userData.body.rotation.x = -0.12;
     const mid = giver.group.position.clone().add(target.group.position).multiplyScalar(0.5);
     mid.y = 1.1;
     spawnBonkParticles(mid, 8);
@@ -890,8 +1212,8 @@
     giver.patience = clamp(giver.patience + 4.5, 0, 100);
     target.patience = clamp(target.patience + 1.0, 0, 100);
     animateCuteSpankVisual(1, 0);
-    toast(`${giver.name} used F: emergency girlfriend BONK. Anger safely converted into comedy.`);
-    setFluffles('A controlled release of girlfriend frustration has been observed. No paperwork will be filed.');
+    toast(`${giver.name} used F: girlfriend BONK. ${target.name} has temporarily lost negotiations with gravity.`);
+    setFluffles('A controlled release of girlfriend frustration has been observed. Subject briefly became floor-adjacent.');
     beep(210, 0.035, 0.035);
     setTimeout(() => beep(720, 0.055, 0.025), 65);
     if (window.NET?.online && window.NET.isHost) window.NET.sendFx('spank', { giverIndex: 1, targetIndex: 0 });
@@ -972,7 +1294,7 @@
   }
 
   function sofaOBB(pos = world.sofa.position, angle = world.sofa.rotation.y) {
-    return { x: pos.x, z: pos.z, hx: 1.75, hz: 0.66, angle };
+    return { x: pos.x, z: pos.z, hx: 1.96, hz: 0.75, angle };
   }
 
   function playerHitsWorld(player, x, z) {
@@ -986,6 +1308,12 @@
     if (world.door && circleHitsOBB(x, z, C.playerRadius, doorOBB())) return true;
 
     if (world.sofa && !player.grabbing && circleHitsOBB(x, z, C.playerRadius, sofaOBB())) return true;
+    if (currentLevel === 'sofa' && world.arrange) {
+      for (const item of world.arrange.items || []) {
+        if (!item.group.visible || item.broken || player.homeHeldItem === item || player.homeGrabItem === item) continue;
+        if (circleHitsOBB(x, z, C.playerRadius, homeItemOBB(item))) return true;
+      }
+    }
     return false;
   }
 
@@ -1033,6 +1361,7 @@
   }
 
   function updateSofa(dt) {
+    if (world.arrange?.active) { updateHomeArrangement(dt); return; }
     const sofa = world.sofa;
     const grabbers = players.filter(p => p.grabbing);
     let desiredPos = sofa.position.clone();
@@ -1194,7 +1523,7 @@
       world.goalRing.material.opacity = 0.48 + 0.16 * Math.sin(performance.now() * 0.008);
       world.goalRing.material.emissiveIntensity = 1.15;
       maybeComment('almostThere', 2800);
-      if (winHold >= C.winHoldSeconds) finishMovingTrial();
+      if (winHold >= C.winHoldSeconds) beginHomeArrangement();
     } else {
       winHold = 0;
       world.goalRing.material.opacity = stage >= 2 ? 0.4 : 0.28;
@@ -1204,7 +1533,7 @@
 
   function updateStageFromPosition() {
     const x = world.sofa.position.x;
-    if (stage === 0 && x > -1.45) {
+    if (stage === 0 && x > C.rug.maxX + 0.6) {
       setStage(1);
       toast('CURSED RUG SURVIVED. TRACTION HAS RETURNED TO THE RELATIONSHIP.');
       beep(520, 0.06, 0.04);
@@ -1215,6 +1544,12 @@
       beep(620, 0.06, 0.04);
       setTimeout(() => beep(760, 0.07, 0.04), 80);
     }
+  }
+
+  function configureSofaTrack() {
+    $('crisis-track').innerHTML = [
+      ['1','Cursed Rug'],['2','Petty Door'],['3','Sofa Spot']
+    ].map((x,i)=>`<div class="crisis-step${i===0?' active':''}" data-step="${i}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
   }
 
   function setStage(next, silent = false) {
@@ -1335,7 +1670,9 @@
     world.door = null;
     world.cat = null;
     world.vase = null;
+    world.arrange = null;
     world.dinner = null;
+    world.bounds = { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
 
     buildKitchenWorld();
     addKitchenLights();
@@ -1734,8 +2071,8 @@
       if (d.mealReady) {
         if (item.kind !== 'plate' || item.assignedIndex !== players.indexOf(player)) continue;
       } else if (d.fire) {
-        // Kitchen emergency belongs to the Runner.
-        if (role !== 'runner' || item.kind !== 'extinguisher') continue;
+        // Fire safety is shared: either partner may grab the extinguisher.
+        if (item.kind !== 'extinguisher') continue;
       } else if (active) {
         // Ingredients are intentionally sequential. Runner fetches; Chef receives.
         if (role === 'runner') {
@@ -1776,11 +2113,8 @@
     }
 
     if (d.fire) {
-      if (role === 'runner') {
-        if (held && held.kind === 'extinguisher') return 'Take the extinguisher to the burning stove.';
-        return 'Get the FIRE EXTINGUISHER and put out the fire.';
-      }
-      return 'Stay clear of the fire and guide your Runner.';
+      if (held && held.kind === 'extinguisher') return 'Take the extinguisher to the burning stove.';
+      return 'Either of you can grab the FIRE EXTINGUISHER — whoever is closer, go!';
     }
 
     if (d.sinkLeak) {
@@ -1830,7 +2164,7 @@
 
     if (player.heldItem) {
       const held = player.heldItem;
-      if (held.kind === 'extinguisher' && role === 'runner' && d.fire && distanceXZ(pos, d.potPos) < 1.95) {
+      if (held.kind === 'extinguisher' && d.fire && distanceXZ(pos, d.potPos) < 1.95) {
         return { type: 'extinguish', text: 'EXTINGUISH THE FIRE' };
       }
       if (held.kind === 'ingredient') {
@@ -2530,7 +2864,7 @@
     let objective = `${runner.name} (RUNNER): fetch → wash → chop → prep tray. ${chef.name} (CHEF): pour/tip ingredients into the pot.`;
     if (dinnerStage === 1) objective = `${chef.name} (CHEF) cooks and stirs. ${runner.name} (RUNNER) watches for trouble.`;
     if (dinnerStage === 2) {
-      if (d && d.fire) objective = `${runner.name} (RUNNER): get the extinguisher. ${chef.name} (CHEF): stay clear.`;
+      if (d && d.fire) objective = `FIRE: either partner can grab the extinguisher. Whoever is closer, save dinner.`;
       else if (d && d.sinkLeak) objective = `${runner.name} (RUNNER): turn off the tap. ${chef.name} (CHEF): keep stirring.`;
       else objective = `${chef.name} (CHEF): finish cooking. ${runner.name} (RUNNER): stay ready.`;
     }
@@ -2565,7 +2899,7 @@
     const chef = players[d.chefIndex], runner = players[d.runnerIndex];
     const phase = $('kitchen-phase');
     if (phase) {
-      if (d.fire) phase.textContent = `🔥 ${runner.name}: extinguisher!`;
+      if (d.fire) phase.textContent = `🔥 EITHER OF YOU: grab extinguisher!`;
       else if (d.sinkLeak) phase.textContent = `💦 ${runner.name}: fix sink · ${chef.name}: keep stirring`;
       else if (d.mealReady) phase.textContent = '🍽 One plate each → dining table';
       else if (active) {
@@ -2703,15 +3037,16 @@
     if (players.length < 2) return;
     let mid;
     if (currentLevel === 'sofa' && world.sofa) {
-      mid = players[0].group.position.clone().add(players[1].group.position).add(world.sofa.position).multiplyScalar(1 / 3);
-      mid.x *= 0.62;
-      mid.z *= 0.45;
+      const focus = world.arrange?.active && activeHomeItem() ? activeHomeItem().group.position : world.sofa.position;
+      mid = players[0].group.position.clone().add(players[1].group.position).add(focus).multiplyScalar(1 / 3);
+      mid.x *= 0.72;
+      mid.z *= 0.58;
     } else {
       mid = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(0.5);
       mid.x *= 0.48;
       mid.z *= 0.32;
     }
-    const desired = new THREE.Vector3(mid.x, currentLevel === 'dinner' ? 12.4 : 12.45, mid.z + (currentLevel === 'dinner' ? 13.35 : 13.5));
+    const desired = new THREE.Vector3(mid.x, currentLevel === 'dinner' ? 12.4 : 17.1, mid.z + (currentLevel === 'dinner' ? 13.35 : 18.3));
     camera.position.lerp(desired, 1 - Math.exp(-2.8 * dt));
 
     if (cameraShake > 0.001) {
@@ -2770,8 +3105,8 @@
     setTimeout(() => beep(1100, 0.18, 0.06), 210);
     for (let i = 0; i < 28; i++) spawnBonkParticles(world.sofa.position, 1);
 
-    setFluffles('The sofa survived. Unfortunately, humans require food.');
-    toast('LEVEL ONE PASSED. PLEASE PROCEED TO THE KITCHEN OF CONSEQUENCES.');
+    setFluffles(`Home arranged. Decorative casualties: ${world.arrange?.damageCount || 0}. Unfortunately, humans require food.`);
+    toast('HOME ARRANGED. PLEASE PROCEED TO THE KITCHEN OF CONSEQUENCES.');
     scheduleNetworkFlow('showDinnerIntro', 1050);
   }
 
@@ -2919,7 +3254,7 @@
       for (const p of players) p.release(false);
       sofaTime = 0;
       sofaChaos = chaos;
-      toast('MOVING DAY SKIPPED. THE SOFA HAS BEEN OUTSOURCED TO PROFESSIONALS.');
+      toast('ARRANGE OUR HOME SKIPPED. THE FURNITURE HAS BEEN OUTSOURCED TO PROFESSIONALS.');
       setFluffles('A skip button. Finally, a healthy boundary. Proceed to dinner.');
       beep(470, .06, .035);
       setTimeout(showDinnerIntro, 550);
@@ -2984,7 +3319,7 @@
     const dinnerNote = skippedLevels.has('dinner')
       ? ' Dinner was skipped in favor of the ancient technology known as takeout.'
       : dinnerTime > 0 ? ` You survived dinner in ${formatTime(dinnerTime)}.` : '';
-    const sofaNote = skippedLevels.has('sofa') ? ' Moving Day was skipped.' : '';
+    const sofaNote = skippedLevels.has('sofa') ? ' Arrange Our Home was skipped.' : '';
     const quizNote = skippedLevels.has('quiz') ? ' The understanding questions were skipped, so no emotional statistics were harmed.' : '';
 
     const understandingText = skippedLevels.has('quiz')
@@ -3000,7 +3335,7 @@
 
     let grade;
     if (skippedLevels.size) {
-      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Moving Day' : x === 'dinner' ? 'Dinner' : 'Questions');
+      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Arrange Home' : x === 'dinner' ? 'Dinner' : 'Questions');
       grade = `custom route · skipped ${labels.join(' + ')}`;
     } else {
       const composite = understandingScore * 8 + avg - Math.min(chaos, 25);
@@ -3019,20 +3354,28 @@
     return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
   }
 
+  function readLocalProfiles() {
+    return [
+      { skin: $('p1-skin')?.value || 'warm', outfit: $('p1-outfit')?.value || 'casual', dupatta: false, sunflower: false },
+      { skin: $('p2-skin')?.value || 'medium', outfit: $('p2-outfit')?.value || 'salwar', dupatta: !!$('p2-dupatta')?.checked, sunflower: $('p2-sunflower') ? !!$('p2-sunflower').checked : true }
+    ];
+  }
+
   function startGame() {
     ensureAudio();
     const n1 = $('p1-name').value.trim() || 'You';
     const n2 = $('p2-name').value.trim() || 'Her';
+    const profiles = pendingProfiles || readLocalProfiles();
 
     if (!players.length) {
       const p1Controls = window.NET?.online
         ? { forward: ['KeyW','ArrowUp'], back: ['KeyS','ArrowDown'], left: ['KeyA','ArrowLeft'], right: ['KeyD','ArrowRight'], grab: 'KeyE' }
         : { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', grab: 'KeyE' };
-      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-8.05, 0, -1.25), p1Controls));
+      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-11.4, 0, -1.35), p1Controls, profiles[0] || {}));
       const p2Controls = window.NET?.online
         ? { forward: 'RemoteW', back: 'RemoteS', left: 'RemoteA', right: 'RemoteD', grab: 'RemoteE' }
         : { forward: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', grab: 'Enter' };
-      players.push(new Player(2, n2, C.colors.playerTwo, new THREE.Vector3(-8.05, 0, 1.25), p2Controls));
+      players.push(new Player(2, n2, C.colors.playerTwo, new THREE.Vector3(-11.4, 0, 1.35), p2Controls, profiles[1] || {}));
     } else {
       players[0].name = n1;
       players[1].name = n2;
@@ -3126,7 +3469,7 @@
     $('action-prompts').classList.add('hidden');
     $('hud').classList.remove('hidden');
     setFluffles(rand(C.fluffles.intro));
-    toast('TRIAL ONE: GET THE SOFA HOME. TRY TO REMAIN CIVIL.');
+    toast('TRIAL ONE: ARRANGE OUR HOME. SOFA FIRST — THEN THE REST OF THE FURNITURE.');
   }
 
   function resetGame(showToast = true) {
@@ -3143,6 +3486,15 @@
     elapsed = 0;
     startTime = performance.now();
     for (const p of players) p.reset();
+    configureSofaTrack();
+    if (world.arrange) {
+      world.arrange.active = false; world.arrange.index = 0; world.arrange.placed = 0; world.arrange.damageCount = 0;
+      for (const item of world.arrange.items) {
+        item.placed = false; item.heldBy = null; item.broken = false; item.damage = 0; item.group.visible = true;
+        item.group.position.copy(item.homePos); item.group.rotation.y = item.homeRot || 0;
+        item.goalMesh.visible = false; item.goalTag.visible = false;
+      }
+    }
 
     world.sofa.position.copy(world.sofa.userData.homePos);
     world.sofa.rotation.y = world.sofa.userData.homeRot;
@@ -3174,6 +3526,7 @@
     const names = Array.isArray(payload.names) ? payload.names : ['You', 'Her'];
     $('p1-name').value = names[0] || 'You';
     $('p2-name').value = names[1] || 'Her';
+    pendingProfiles = Array.isArray(payload.profiles) ? payload.profiles : null;
     startRoute = ['full', 'kitchen', 'quiz'].includes(payload.route) ? payload.route : 'full';
     startGame();
   }
@@ -3266,8 +3619,24 @@
         patience: p.patience,
         grabbing: p.grabbing,
         grabSide: p.grabSide,
-        heldItem: p.heldItem?.name || null
+        heldItem: p.heldItem?.name || null,
+        knockedMs: Math.max(0, (p.knockedUntil || 0) - performance.now())
       })),
+      home: currentLevel === 'sofa' && world.arrange ? {
+        active: !!world.arrange.active,
+        index: world.arrange.index,
+        placed: world.arrange.placed,
+        damageCount: world.arrange.damageCount,
+        items: world.arrange.items.map(item => ({
+          name: item.name,
+          p: [item.group.position.x, item.group.position.y, item.group.position.z],
+          ry: item.group.rotation.y,
+          placed: !!item.placed,
+          broken: !!item.broken,
+          damage: item.damage || 0,
+          visible: item.group.visible !== false
+        }))
+      } : null,
       sofa: currentLevel === 'sofa' && world.sofa ? networkObjectState(world.sofa) : null,
       door: currentLevel === 'sofa' && world.door?.group ? { ry: world.door.group.rotation.y } : null,
       cat: world.cat?.group ? networkObjectState(world.cat.group) : null,
@@ -3379,7 +3748,27 @@
       p.patience = ps.patience;
       p.grabbing = !!ps.grabbing;
       p.grabSide = ps.grabSide;
+      if (ps.knockedMs > 40) p.knockedUntil = performance.now() + ps.knockedMs;
     });
+
+    if (snap.home && world.arrange) {
+      const h = snap.home;
+      world.arrange.active = !!h.active;
+      world.arrange.index = Number(h.index || 0);
+      world.arrange.placed = Number(h.placed || 0);
+      world.arrange.damageCount = Number(h.damageCount || 0);
+      for (const hs of h.items || []) {
+        const item = world.arrange.items.find(x => x.name === hs.name); if (!item) continue;
+        item.placed = !!hs.placed; item.broken = !!hs.broken; item.damage = Number(hs.damage || 0); item.group.visible = hs.visible !== false;
+        setNetTarget(item.group, hs);
+      }
+      if (world.arrange.active) {
+        if (document.querySelectorAll('.crisis-step').length !== world.arrange.items.length + 1) configureHomeTrack();
+        world.arrange.items.forEach((item,i)=>{ item.goalMesh.visible=i===world.arrange.index&&!item.placed; item.goalTag.visible=i===world.arrange.index&&!item.placed; });
+      } else if (document.querySelectorAll('.crisis-step').length !== 3) {
+        configureSofaTrack();
+      }
+    }
 
     if (snap.sofa && world.sofa) setNetTarget(world.sofa, snap.sofa);
     if (snap.door && world.door?.group) world.door.group.rotation.y = snap.door.ry;
@@ -3461,6 +3850,7 @@
     if (currentLevel === 'sofa') {
       smoothObject(world.sofa, 15);
       smoothObject(world.cat?.group, 10);
+      for (const item of world.arrange?.items || []) smoothObject(item.group, 13);
     } else if (world.dinner) {
       smoothObject(world.dinner.cat?.group, 10);
     }
