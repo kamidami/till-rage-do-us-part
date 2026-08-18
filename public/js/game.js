@@ -46,7 +46,7 @@
     vase: null,
     dinner: null,
     arrange: null,
-    bounds: { minX: -14.5, maxX: 14.5, minZ: -8.5, maxZ: 8.5 }
+    bounds: { minX: -16.45, maxX: 16.45, minZ: -9.45, maxZ: 9.45 }
   };
 
   const HANDLE_LOCAL = {
@@ -336,7 +336,7 @@
     scene.fog = new THREE.Fog(0x160d20, 18, 39);
 
     camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(0, 17.2, 18.8);
+    camera.position.set(0, 19.0, 20.6);
     camera.lookAt(0, 0, 0);
 
     clock = new THREE.Clock();
@@ -394,14 +394,14 @@
   }
 
   function buildWorld() {
-    world.bounds = { minX: -14.45, maxX: 14.45, minZ: -8.45, maxZ: 8.45 };
-    const floor = mesh(new THREE.BoxGeometry(30, 0.35, 18), mat(0x3a263e, 0.92), false, true);
+    world.bounds = { minX: -16.45, maxX: 16.45, minZ: -9.45, maxZ: 9.45 };
+    const floor = mesh(new THREE.BoxGeometry(34, 0.35, 20), mat(0x3a263e, 0.92), false, true);
     floor.position.y = -0.22;
     scene.add(floor);
 
     // Larger apartment floor details make the space read like a real room rather than an arena.
-    for (let x = -14; x <= 14; x += 2) {
-      const plank = mesh(new THREE.BoxGeometry(0.025, 0.01, 17.2), mat(0x51364e, 0.96), false, true);
+    for (let x = -16; x <= 16; x += 2) {
+      const plank = mesh(new THREE.BoxGeometry(0.025, 0.01, 19.2), mat(0x51364e, 0.96), false, true);
       plank.position.set(x, -0.025, 0); scene.add(plank);
     }
 
@@ -422,19 +422,19 @@
     world.goalHeart = heart; scene.add(heart);
 
     // Divider wall with a wider doorway in the larger apartment.
-    addWall(0.1, -5.9, 0.45, 5.15, 'divider-north');
-    addWall(0.1, 5.9, 0.45, 5.15, 'divider-south');
-    addWall(-14.92, 0, 0.22, 18, 'outer-left', false);
-    addWall(14.92, 0, 0.22, 18, 'outer-right', false);
-    addWall(0, -8.92, 30, 0.22, 'outer-top', false);
-    addWall(0, 8.92, 30, 0.22, 'outer-bottom', false);
+    addWall(0.1, -6.6, 0.45, 6.15, 'divider-north');
+    addWall(0.1, 6.6, 0.45, 6.15, 'divider-south');
+    addWall(-16.92, 0, 0.22, 20, 'outer-left', false);
+    addWall(16.92, 0, 0.22, 20, 'outer-right', false);
+    addWall(0, -9.92, 34, 0.22, 'outer-top', false);
+    addWall(0, 9.92, 34, 0.22, 'outer-bottom', false);
 
     const frameMat = mat(0xf8dce8, 0.72);
-    for (const z of [-3.2, 3.2]) {
+    for (const z of [-3.45, 3.45]) {
       const post = mesh(new THREE.BoxGeometry(0.7, 2.4, 0.45), frameMat);
       post.position.set(0.05, 1.16, z); scene.add(post);
     }
-    const lintel = mesh(new THREE.BoxGeometry(0.7, 0.35, 6.85), frameMat);
+    const lintel = mesh(new THREE.BoxGeometry(0.7, 0.35, 7.35), frameMat);
     lintel.position.set(0.05, 2.25, 0); scene.add(lintel);
 
     world.door = makePettyDoor();
@@ -442,15 +442,15 @@
     scene.add(world.door.group);
 
     // The apartment already contains believable decor and moving boxes.
-    addTable(-10.8, -6.8);
-    addPlant(-12.4, 6.4);
-    addLamp(13.0, -6.5);
-    addMovingBoxes(-3.0, 6.9);
-    world.vase = makeFragileVase(6.9, 2.2); scene.add(world.vase.group);
+    addTable(-13.7, -7.8);
+    addPlant(-14.6, 7.8);
+    addLamp(15.2, -7.7);
+    addMovingBoxes(-2.8, 8.0);
+    world.vase = makeFragileVase(7.2, -7.0); scene.add(world.vase.group);
 
     world.sofa = makeSofa();
-    world.sofa.scale.setScalar(1.12);
-    world.sofa.position.set(-9.6, 0.58, 0);
+    world.sofa.scale.setScalar(1.18);
+    world.sofa.position.set(-11.5, 0.58, 0);
     world.sofa.rotation.y = Math.PI / 2;
     world.sofa.userData.homePos = world.sofa.position.clone();
     world.sofa.userData.homeRot = world.sofa.rotation.y;
@@ -462,7 +462,7 @@
     buildHomeFurniture();
 
     world.cat = makeCat();
-    world.cat.group.position.x = 9.0;
+    world.cat.group.position.x = 11.5;
     scene.add(world.cat.group);
 
     for (let i = 0; i < 34; i++) {
@@ -703,20 +703,31 @@
     const a = world.arrange;
     if (!a) return;
     const defs = [
-      { name:'coffee', label:'COFFEE TABLE', kind:'coffee', heavy:true, fragile:false, hx:1.25,hz:.66, handleY:.76, start:[3.2,0,-5.9], goal:[9.6,0,-2.8], color:0xb77b69 },
-      { name:'bookshelf', label:'BOOKSHELF', kind:'bookshelf', heavy:true, fragile:false, hx:.85,hz:.4, handleY:.92, start:[4.6,0,5.8], goal:[6.9,0,6.9], color:0x9d6a59 },
-      { name:'rugroll', label:'LIVING RUG', kind:'rug', heavy:false, fragile:false, hx:.9,hz:.4, start:[2.7,0,3.5], goal:[9.0,0,3.4], color:0xc87c9f },
-      { name:'lamp', label:'FLOOR LAMP', kind:'lamp', heavy:false, fragile:true, hx:.45,hz:.45, start:[4.9,0,-3.2], goal:[12.7,0,-5.2], color:0xf7b7ca },
-      { name:'plant', label:'PLANT', kind:'plant', heavy:false, fragile:true, hx:.48,hz:.48, start:[3.4,0,6.6], goal:[12.3,0,5.5], color:0x67ba84 },
-      { name:'side', label:'SIDE TABLE', kind:'side', heavy:false, fragile:true, hx:.62,hz:.62, start:[5.4,0,2.0], goal:[12.0,0,2.75], color:0xc0906d }
+      { name:'coffee', label:'COFFEE TABLE', kind:'coffee', heavy:true, fragile:false, hx:1.25,hz:.66, handleY:.76, start:[-8.3,0,-6.7], goal:[10.8,0,2.55], color:0xb77b69 },
+      { name:'bookshelf', label:'BOOKSHELF', kind:'bookshelf', heavy:true, fragile:false, hx:.85,hz:.4, handleY:.92, start:[-5.4,0,6.9], goal:[14.6,0,6.7], color:0x9d6a59 },
+      { name:'rugroll', label:'LIVING RUG', kind:'rug', heavy:false, fragile:false, hx:.9,hz:.4, start:[-11.7,0,6.9], goal:[10.7,0,5.0], color:0xc87c9f },
+      { name:'lamp', label:'FLOOR LAMP', kind:'lamp', heavy:false, fragile:true, hx:.45,hz:.45, start:[-5.2,0,-6.9], goal:[15.0,0,-5.9], color:0xf7b7ca },
+      { name:'plant', label:'PLANT', kind:'plant', heavy:false, fragile:true, hx:.48,hz:.48, start:[-8.3,0,6.9], goal:[15.0,0,5.7], color:0x67ba84 },
+      { name:'side', label:'SIDE TABLE', kind:'side', heavy:false, fragile:true, hx:.62,hz:.62, start:[-5.7,0,3.7], goal:[13.8,0,-0.25], color:0xc0906d }
     ];
     for (const def of defs) {
       const group = homeItemGroup(def); group.position.set(...def.start); scene.add(group);
+
+      const pickupMat = new THREE.MeshStandardMaterial({
+        color: 0xffd06f, transparent: true, opacity: .22,
+        emissive: 0xffb23f, emissiveIntensity: .8, roughness: .8
+      });
+      const pickupHalo = mesh(new THREE.CylinderGeometry(Math.max(def.hx,def.hz)+.28,Math.max(def.hx,def.hz)+.28,.025,32), pickupMat, false, true);
+      pickupHalo.position.y = .025; pickupHalo.visible = false; group.add(pickupHalo);
+      const pickupTag = makeTextSprite(`MOVE ${def.label}`, 'rgba(60,42,20,.92)', '#fff4cf');
+      pickupTag.position.set(0, def.kind === 'lamp' ? 2.7 : 1.75, 0);
+      pickupTag.scale.multiplyScalar(.5); pickupTag.visible = false; group.add(pickupTag);
+
       const goalMat = new THREE.MeshStandardMaterial({color:def.fragile?0xffb7c8:0xffd06f,transparent:true,opacity:.11,emissive:def.fragile?0x522034:0x4f3d16,emissiveIntensity:.2,roughness:.88});
       const goal = mesh(new THREE.CylinderGeometry(Math.max(def.hx,def.hz)+.48,Math.max(def.hx,def.hz)+.48,.025,32),goalMat,false,true);
       goal.position.set(def.goal[0],.018,def.goal[2]); goal.visible=false; scene.add(goal);
       const tag=makeTextSprite(def.label, def.fragile?'rgba(92,41,54,.9)':'rgba(84,66,31,.9)','#fff8eb'); tag.position.set(def.goal[0],1.15,def.goal[2]); tag.scale.multiplyScalar(.58); tag.visible=false; scene.add(tag);
-      const item={...def,group,goalMesh:goal,goalTag:tag,placed:false,heldBy:null,damage:0,broken:false,lastImpact:-9999,homePos:new THREE.Vector3(...def.start), homeRot:0};
+      const item={...def,group,pickupHalo,pickupTag,goalMesh:goal,goalTag:tag,placed:false,heldBy:null,damage:0,broken:false,lastImpact:-9999,homePos:new THREE.Vector3(...def.start), homeRot:0};
       group.userData.homeItem=item; a.items.push(item); a.goals.push(goal);
     }
   }
@@ -798,7 +809,7 @@
       item.broken=true; item.group.visible=false; world.arrange.damageCount+=1;
       for(const p of players){ if(p.homeHeldItem===item)p.homeHeldItem=null; if(p.homeGrabItem===item){p.homeGrabItem=null;p.homeGrabSide=null;} }
       toast(`${item.label} BROKE. A suspicious replacement is arriving.`); setFluffles('Property damage detected. Deposit optimism reduced.');
-      setTimeout(()=>{ if(currentLevel!=='sofa'||item.placed)return; item.broken=false; item.damage=0; item.group.visible=true; item.group.position.copy(item.homePos); item.group.rotation.y=item.homeRot; },1800);
+      setTimeout(()=>{ if(currentLevel!=='sofa'||item.placed)return; item.broken=false; item.damage=0; item.group.visible=true; item.group.position.copy(item.homePos); item.group.rotation.y=item.homeRot; if(item===activeHomeItem()) activateHomeTask(); },1800);
     }
   }
 
@@ -807,7 +818,7 @@
     item.placed=true; item.heldBy=null; item.group.position.set(item.goal[0],0,item.goal[2]); item.group.rotation.y=0;
     if(player) player.homeHeldItem=null;
     for(const p of players){ if(p.homeGrabItem===item){p.homeGrabItem=null;p.homeGrabSide=null;} }
-    item.goalMesh.visible=false; item.goalTag.visible=false;
+    item.goalMesh.visible=false; item.goalTag.visible=false; if(item.pickupHalo)item.pickupHalo.visible=false; if(item.pickupTag)item.pickupTag.visible=false;
     world.arrange.placed+=1; chaos=Math.max(0,chaos-.5); beep(680,.065,.035); setTimeout(()=>beep(880,.07,.028),60);
     toast(`${item.label} PLACED. THE APARTMENT IS BECOMING SUSPICIOUSLY LIVABLE.`);
     world.arrange.index+=1;
@@ -816,7 +827,14 @@
 
   function activateHomeTask() {
     const a=world.arrange; if(!a?.active)return;
-    a.items.forEach((it,i)=>{ it.goalMesh.visible=i===a.index&&!it.placed; it.goalTag.visible=i===a.index&&!it.placed; if(it.goalMesh.visible){it.goalMesh.material.opacity=.28;it.goalMesh.material.emissiveIntensity=.75;} });
+    a.items.forEach((it,i)=>{
+      const active = i===a.index&&!it.placed&&!it.broken;
+      it.goalMesh.visible=active;
+      it.goalTag.visible=active;
+      if(it.pickupHalo) it.pickupHalo.visible=active&&!it.heldBy;
+      if(it.pickupTag) it.pickupTag.visible=active&&!it.heldBy;
+      if(it.goalMesh.visible){it.goalMesh.material.opacity=.28;it.goalMesh.material.emissiveIntensity=.75;}
+    });
     const item=activeHomeItem();
     if(!item){ finishMovingTrial(); return; }
     $('objective').textContent=`Arrange ${item.label}: ${item.heavy?'BOTH grab a gold handle and carry it':'carry it carefully'} to the glowing spot.${item.fragile?' Fragile!':''}`;
@@ -829,14 +847,19 @@
     const a=world.arrange; if(!a||a.active)return;
     a.active=true; a.index=0; winHold=0;
     for(const p of players) p.release(false);
+    world.sofa.position.set(C.goalCenter.x, 0.55, C.goalCenter.z);
+    world.sofa.rotation.y = 0;
+    world.sofa.userData.slideVel.set(0,0,0);
     world.goalRing.material.opacity=.13; world.goalHeart.material.opacity=.28;
     configureHomeTrack(); activateHomeTask();
-    toast('SOFA PLACED. NOW ARRANGE THE REST OF YOUR HOME.');
+    toast('1/7 SOFA PLACED. 2/7: COFFEE TABLE — BOTH OF YOU GRAB A HANDLE.');
   }
 
   function configureHomeTrack() {
+    const track = $('crisis-track');
+    track.classList.add('home-track');
     const labels=['Sofa',...world.arrange.items.map(i=>i.label.replace('FLOOR ','').replace('LIVING ',''))];
-    $('crisis-track').innerHTML=labels.map((label,i)=>`<div class="crisis-step${i===0?' done':''}" data-step="${i}"><b>${i+1}</b><span>${label}</span></div>`).join('');
+    track.innerHTML=labels.map((label,i)=>`<div class="crisis-step${i===0?' done':''}" data-step="${i}"><b>${i+1}</b><span>${label}</span></div>`).join('');
   }
 
   function updateHeavyHomeItem(item,dt) {
@@ -857,7 +880,15 @@
   function updateHomeArrangement(dt) {
     const item=activeHomeItem(); if(!world.arrange?.active||!item)return;
     if(item.heavy) updateHeavyHomeItem(item,dt);
-    if(item.goalMesh?.visible){ const pulse=1+Math.sin(elapsed*4)*.08; item.goalMesh.scale.setScalar(pulse); }
+    if(item.goalMesh?.visible){
+      const pulse=1+Math.sin(elapsed*4)*.08;
+      item.goalMesh.scale.setScalar(pulse);
+      if(item.pickupHalo){
+        item.pickupHalo.scale.setScalar(pulse);
+        item.pickupHalo.visible=!item.heldBy&&!item.broken;
+      }
+      if(item.pickupTag) item.pickupTag.visible=!item.heldBy&&!item.broken;
+    }
     $('grab-hint').classList.toggle('hidden',!players.some(p=>p.canGrab));
   }
 
@@ -1125,7 +1156,7 @@
 
   function updatePlayerFace(player) {
     const d = world.dinner;
-    const urgentStress = currentLevel === 'dinner' && d && ((d.fire || d.sinkLeak) ? 0.45 : (d.urgentStage === 1 ? 0.35 : (d.urgentRemaining > 0 && d.urgentRemaining < 4 ? 0.18 : 0)));
+    const urgentStress = currentLevel === 'dinner' && d && (d.fire || d.sinkLeak ? 0.45 : 0);
     const t = clamp(1 - player.patience / 100 + urgentStress, 0, 1);
     const squint = clamp(1 - t * 0.78, 0.2, 1);
     for (const eye of player.group.userData.eyes) eye.scale.y = squint;
@@ -1535,38 +1566,41 @@
     const x = world.sofa.position.x;
     if (stage === 0 && x > C.rug.maxX + 0.6) {
       setStage(1);
-      toast('CURSED RUG SURVIVED. TRACTION HAS RETURNED TO THE RELATIONSHIP.');
+      toast('SOFA CHECKPOINT: CURSED RUG SURVIVED. STILL TASK 1/7.');
       beep(520, 0.06, 0.04);
     }
     if (stage <= 1 && x > C.doorwayPassedX) {
       setStage(2);
-      toast('SOFA THROUGH. NOW GET IT INTO THE COZY CORNER.');
+      toast('SOFA THROUGH THE DOOR. PUT IT IN THE GLOWING SPOT — THEN FURNITURE 2/7 STARTS.');
       beep(620, 0.06, 0.04);
       setTimeout(() => beep(760, 0.07, 0.04), 80);
     }
   }
 
   function configureSofaTrack() {
-    $('crisis-track').innerHTML = [
-      ['1','Cursed Rug'],['2','Petty Door'],['3','Sofa Spot']
-    ].map((x,i)=>`<div class="crisis-step${i===0?' active':''}" data-step="${i}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+    const track = $('crisis-track');
+    track.classList.add('home-track');
+    const labels = ['Sofa', ...(world.arrange?.items || []).map(i => i.label.replace('FLOOR ','').replace('LIVING ',''))];
+    track.innerHTML = labels.map((label,i)=>`<div class="crisis-step${i===0?' active':''}" data-step="${i}"><b>${i+1}</b><span>${label}</span></div>`).join('');
+    $('crisis-count').textContent = `1/${labels.length}`;
   }
 
   function setStage(next, silent = false) {
     stage = Math.max(stage, next);
-    const objectives = [
-      'Escape the cursed slippery rug with the sofa.',
-      'Time the petty door and get the sofa through the doorway.',
-      'Get the sofa into the Cozy Corner. Avoid giving the cat ideas.'
+    const hints = [
+      '1/7 SOFA — carry it across the slippery rug toward the doorway.',
+      '1/7 SOFA — get it through the petty door. The other furniture is waiting behind you.',
+      '1/7 SOFA — place it in the glowing living-room spot, then the real arranging begins.'
     ];
-    $('objective').textContent = objectives[stage];
-    $('crisis-count').textContent = `${stage + 1}/3`;
+    $('objective').textContent = hints[stage];
+    const total = 1 + (world.arrange?.items?.length || 6);
+    $('crisis-count').textContent = `1/${total}`;
     document.querySelectorAll('.crisis-step').forEach((el, i) => {
-      el.classList.toggle('active', i === stage);
-      el.classList.toggle('done', i < stage);
+      el.classList.toggle('active', i === 0);
+      el.classList.toggle('done', false);
     });
     if (!silent && stage === 1) maybeComment('door', 0);
-    if (!silent && stage === 2) setFluffles('The Cozy Corner is glowing. This is not symbolic. Probably.');
+    if (!silent && stage === 2) setFluffles('The sofa spot is glowing. After this: table, shelf, rug, lamp, plant, side table. Yes, all of them.');
   }
 
   function spawnBonkParticles(pos, count = 5) {
@@ -2125,20 +2159,18 @@
     if (active) {
       const item = dinnerItemByName(active);
       const label = active.toUpperCase();
-      const timer = d.urgentRemaining > 0 ? ` (${Math.ceil(d.urgentRemaining)}s)` : '';
-      const burn = d.urgentStage === 1 ? ` ${urgencySubject(active)} is burning!` : '';
       if (role === 'runner') {
         if (held && held.name === active) {
-          if (active !== 'pasta' && !held.washed) return `Take ${label} to the SINK and wash it${timer}.`;
-          if (active !== 'pasta' && !held.prepared) return `Take ${label} back to the CHOPPING BOARD and chop it${timer}.`;
-          return `Bring prepared ${label} to the gold PREP TRAY${timer}.`;
+          if (active !== 'pasta' && !held.washed) return `Take ${label} to the SINK and wash it. No rush timer.`;
+          if (active !== 'pasta' && !held.prepared) return `Take ${label} back to the CHOPPING BOARD and chop it.`;
+          return `Bring prepared ${label} to the gold PREP TRAY.`;
         }
-        if (item && item.delivered) return `Wait — Chef is putting ${label} into the pot.${burn}`;
-        return `Pick up the glowing ${label}${timer}.${burn}`;
+        if (item && item.delivered) return `Wait — Chef is putting ${label} into the pot.`;
+        return `Pick up the glowing ${label}. Prep has no countdown now.`;
       }
-      if (held && held.name === active) return `${active === 'pasta' ? 'Pour' : 'Tip'} ${label} into the pot now.${burn}`;
-      if (item && item.delivered) return `Pick up ${label} from the PREP TRAY, then put it into the pot.${burn}`;
-      return `Stay by the pot. Runner is preparing ${label}${timer}.${burn}`;
+      if (held && held.name === active) return `${active === 'pasta' ? 'Pour' : 'Tip'} ${label} into the pot when ready.`;
+      if (item && item.delivered) return `Pick up ${label} from the PREP TRAY, then put it into the pot.`;
+      return `Stay by the pot. Runner is preparing ${label} at a human pace.`;
     }
 
     if (!d.stoveOn) {
@@ -2426,29 +2458,8 @@
       : 'You can keep moving and handle your own kitchen responsibilities.';
   }
 
-  function urgencyDuration(name) {
-    if (name === 'tomato') return 30;
-    if (name === 'onion') return 26;
-    return 0;
-  }
-
-  function urgencySubject(name) {
-    if (name === 'tomato') return 'PASTA';
-    if (name === 'onion') return 'SAUCE';
-    return 'DINNER';
-  }
-
-  function startDinnerUrgency(name) {
-    const d = world.dinner;
-    if (!d || !name) return;
-    d.urgentName = name;
-    d.urgentMax = urgencyDuration(name);
-    d.urgentRemaining = d.urgentMax;
-    d.urgentStage = 0;
-    d.urgentWarned = false;
-    if (d.smokeGroup) d.smokeGroup.visible = false;
-  }
-
+  // v1.4: ingredient prep is intentionally untimed. These fields stay reset
+  // only so old online snapshots cannot accidentally re-enable the former countdown.
   function clearDinnerUrgency() {
     const d = world.dinner;
     if (!d) return;
@@ -2550,9 +2561,9 @@
 
     const next = activeDinnerIngredient(d);
     if (next) {
-      startDinnerUrgency(next);
-      setFluffles(`${item.label} is in. Runner: prep ${next.toUpperCase()} quickly. ${urgencySubject(next)} will not wait politely.`);
-      toast(`NEXT: ${next.toUpperCase()} — WASH, CHOP, DELIVER.`);
+      clearDinnerUrgency();
+      setFluffles(`${item.label} is in. Next: ${next.toUpperCase()}. Prep it properly; I have revoked the ingredient countdown.`);
+      toast(`NEXT: ${next.toUpperCase()} — WASH, CHOP, DELIVER. NO COUNTDOWN.`);
     } else {
       clearDinnerUrgency();
       setDinnerStage(1);
@@ -2720,11 +2731,7 @@
       });
     }
     if (d.smokeGroup) {
-      d.smokeGroup.children.forEach((puff, i) => {
-        puff.position.y = puff.userData.base.y + Math.sin(elapsed * 2.5 + i) * 0.06 + (d.urgentStage === 1 ? 0.08 : 0);
-        puff.position.x = puff.userData.base.x + Math.sin(elapsed * 1.8 + i) * 0.025;
-        puff.material.opacity = d.urgentStage === 1 ? 0.28 + Math.sin(elapsed * 4 + i) * 0.04 : 0.2;
-      });
+      d.smokeGroup.visible = false;
     }
 
     if (!gameStarted || won) {
@@ -2733,33 +2740,8 @@
     }
 
     const active = activeDinnerIngredient(d);
-    if (active && d.recipe.size > 0 && !d.mealReady && !d.fire) {
-      if (d.urgentName !== active || d.urgentRemaining <= 0) startDinnerUrgency(active);
-      d.urgentRemaining -= dt;
-      if (!d.urgentWarned && d.urgentRemaining <= d.urgentMax * 0.45) {
-        d.urgentWarned = true;
-        toast(`HURRY — ${active.toUpperCase()} IS NEEDED SOON.`);
-        setFluffles(`${urgencySubject(active)} is starting to complain. Consider moving faster than a committee.`);
-        beep(410, 0.05, 0.03);
-      }
-      if (d.urgentRemaining <= 0) {
-        if (d.urgentStage === 0) {
-          d.urgentStage = 1;
-          d.urgentRemaining = 6.0;
-          d.urgentWarned = true;
-          if (d.smokeGroup) d.smokeGroup.visible = true;
-          chaos += 4;
-          players.forEach(p => p.patience = clamp(p.patience - 5, 0, 100));
-          toast(`${urgencySubject(active)} IS BURNING — ADD ${active.toUpperCase()} NOW!`);
-          setFluffles(`Delay acknowledged. ${urgencySubject(active)} has entered a dramatic smoking phase.`);
-          beep(180, 0.11, 0.05);
-        } else {
-          burnDinner();
-        }
-      }
-    } else if (!active || d.mealReady || d.fire) {
-      clearDinnerUrgency();
-    }
+    // Ingredient prep is untimed in v1.4. Cooking danger begins only after the stove is on.
+    clearDinnerUrgency();
 
     if (d.stoveOn && !d.fire && !d.mealReady) {
       const stale = elapsed - d.lastStirAt;
@@ -2845,6 +2827,7 @@
 
   function configureDinnerHUD() {
     const track = $('crisis-track');
+    track.classList.remove('home-track');
     track.innerHTML = [
       ['1', 'Team Hand-offs'],
       ['2', 'Chef Cooks'],
@@ -2904,19 +2887,16 @@
       else if (d.mealReady) phase.textContent = '🍽 One plate each → dining table';
       else if (active) {
         const item = dinnerItemByName(active);
-        const countdown = d.urgentRemaining > 0 ? ` · ⏱ ${Math.ceil(d.urgentRemaining)}s` : '';
-        if (d.urgentStage === 1) {
-          phase.textContent = `🔥 ${urgencySubject(active)} burning — ${active.toUpperCase()} NOW!`;
-        } else if (d.mini?.active) {
+        if (d.mini?.active) {
           phase.textContent = `🔎 ${players[d.mini.playerIndex].name}: ${d.mini.type.toUpperCase()} ${d.mini.itemName.toUpperCase()}`;
         } else if (item?.delivered) {
-          phase.textContent = `👨‍🍳 ${chef.name}: ${active === 'pasta' ? 'pour' : 'tip'} ${active.toUpperCase()} into pot${countdown}`;
+          phase.textContent = `👨‍🍳 ${chef.name}: ${active === 'pasta' ? 'pour' : 'tip'} ${active.toUpperCase()} into pot · no prep timer`;
         } else if (active !== 'pasta' && item?.heldBy && !item.washed) {
-          phase.textContent = `💦 ${runner.name}: wash ${active.toUpperCase()}${countdown}`;
+          phase.textContent = `💦 ${runner.name}: wash ${active.toUpperCase()} · no rush`;
         } else if (active !== 'pasta' && item?.heldBy && item.washed && !item.prepared) {
-          phase.textContent = `🔪 ${runner.name}: chop ${active.toUpperCase()}${countdown}`;
+          phase.textContent = `🔪 ${runner.name}: chop ${active.toUpperCase()} · no rush`;
         } else {
-          phase.textContent = `🏃 ${runner.name}: prepare ${active.toUpperCase()}${countdown}`;
+          phase.textContent = `🏃 ${runner.name}: prepare ${active.toUpperCase()} · no countdown`;
         }
       }
       else if (d.stoveOn) phase.textContent = d.cook >= 68 && d.cook <= 94 ? `✓ ${chef.name}: TURN STOVE OFF!` : `👨‍🍳 ${chef.name}: stir + watch meter`;
@@ -2976,11 +2956,10 @@
       if (item.halo) {
         const should = important && !item.heldBy && !(item.kind === 'ingredient' && item.delivered);
         item.halo.visible = should;
-        const isUrgentIngredient = item.kind === 'ingredient' && item.name === active && d.urgentRemaining > 0;
-        item.halo.scale.setScalar(should ? (isUrgentIngredient ? pulse * 1.18 : pulse) : 1);
-        if (should && isUrgentIngredient) {
-          item.halo.material.color.setHex(d.urgentStage === 1 ? 0xff6b68 : 0xffd46f);
-          item.halo.material.emissive.setHex(d.urgentStage === 1 ? 0xff3a34 : 0xffbd4a);
+        item.halo.scale.setScalar(should ? pulse : 1);
+        if (should && item.kind === 'ingredient') {
+          item.halo.material.color.setHex(0xffd46f);
+          item.halo.material.emissive.setHex(0xffbd4a);
         }
       }
     }
@@ -3046,7 +3025,7 @@
       mid.x *= 0.48;
       mid.z *= 0.32;
     }
-    const desired = new THREE.Vector3(mid.x, currentLevel === 'dinner' ? 12.4 : 17.1, mid.z + (currentLevel === 'dinner' ? 13.35 : 18.3));
+    const desired = new THREE.Vector3(mid.x, currentLevel === 'dinner' ? 12.4 : 18.9, mid.z + (currentLevel === 'dinner' ? 13.35 : 20.4));
     camera.position.lerp(desired, 1 - Math.exp(-2.8 * dt));
 
     if (cameraShake > 0.001) {
@@ -3371,11 +3350,11 @@
       const p1Controls = window.NET?.online
         ? { forward: ['KeyW','ArrowUp'], back: ['KeyS','ArrowDown'], left: ['KeyA','ArrowLeft'], right: ['KeyD','ArrowRight'], grab: 'KeyE' }
         : { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', grab: 'KeyE' };
-      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-11.4, 0, -1.35), p1Controls, profiles[0] || {}));
+      players.push(new Player(1, n1, C.colors.playerOne, new THREE.Vector3(-13.4, 0, -1.45), p1Controls, profiles[0] || {}));
       const p2Controls = window.NET?.online
         ? { forward: 'RemoteW', back: 'RemoteS', left: 'RemoteA', right: 'RemoteD', grab: 'RemoteE' }
         : { forward: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', grab: 'Enter' };
-      players.push(new Player(2, n2, C.colors.playerTwo, new THREE.Vector3(-11.4, 0, 1.35), p2Controls, profiles[1] || {}));
+      players.push(new Player(2, n2, C.colors.playerTwo, new THREE.Vector3(-13.4, 0, 1.45), p2Controls, profiles[1] || {}));
     } else {
       players[0].name = n1;
       players[1].name = n2;
@@ -3493,6 +3472,8 @@
         item.placed = false; item.heldBy = null; item.broken = false; item.damage = 0; item.group.visible = true;
         item.group.position.copy(item.homePos); item.group.rotation.y = item.homeRot || 0;
         item.goalMesh.visible = false; item.goalTag.visible = false;
+        if (item.pickupHalo) item.pickupHalo.visible = false;
+        if (item.pickupTag) item.pickupTag.visible = false;
       }
     }
 
@@ -3764,8 +3745,13 @@
       }
       if (world.arrange.active) {
         if (document.querySelectorAll('.crisis-step').length !== world.arrange.items.length + 1) configureHomeTrack();
-        world.arrange.items.forEach((item,i)=>{ item.goalMesh.visible=i===world.arrange.index&&!item.placed; item.goalTag.visible=i===world.arrange.index&&!item.placed; });
-      } else if (document.querySelectorAll('.crisis-step').length !== 3) {
+        world.arrange.items.forEach((item,i)=>{
+          const active = i===world.arrange.index&&!item.placed&&!item.broken;
+          item.goalMesh.visible=active; item.goalTag.visible=active;
+          if(item.pickupHalo)item.pickupHalo.visible=active;
+          if(item.pickupTag)item.pickupTag.visible=active;
+        });
+      } else if (document.querySelectorAll('.crisis-step').length !== world.arrange.items.length + 1) {
         configureSofaTrack();
       }
     }
@@ -3794,15 +3780,15 @@
       d.servedCount = sd.servedCount;
       d.ingredientStep = sd.ingredientStep;
       d.recipe = new Set(sd.recipe || []);
-      d.urgentName = sd.urgentName;
-      d.urgentRemaining = sd.urgentRemaining;
-      d.urgentMax = sd.urgentMax;
-      d.urgentStage = sd.urgentStage;
+      d.urgentName = null;
+      d.urgentRemaining = 0;
+      d.urgentMax = 0;
+      d.urgentStage = 0;
       d.chefIndex = sd.chefIndex;
       d.runnerIndex = sd.runnerIndex;
       d.mini = sd.mini ? { ...sd.mini } : null;
       if (d.fireGroup) d.fireGroup.visible = !!d.fire;
-      if (d.smokeGroup) d.smokeGroup.visible = !!d.urgentStage && !d.fire;
+      if (d.smokeGroup) d.smokeGroup.visible = false;
       if (d.water) {
         d.water.scale.x = 0.08 + d.waterLevel * 0.92;
         d.water.scale.z = 0.08 + d.waterLevel * 0.92;

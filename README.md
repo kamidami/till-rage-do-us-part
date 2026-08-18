@@ -1,74 +1,44 @@
-# Till Rage Do Us Part — Online v1.3
+# Till Rage Do Us Part — Online v1.4
 
-## Cozy Home + Custom Characters + Chaos Physics
+## Home Fix + Relaxed Kitchen
 
-A private two-player online 3D co-op game for couples. One player creates a room, shares the 5-character code, and both play the same authoritative game world from separate phones/computers.
+This build keeps the online/mobile/custom-character work from v1.3 and fixes the issues found during the live/local play-test.
 
-### v1.3 highlights
+### What changed
 
-- **Arrange Our Home** replaces the one-sofa-only first level.
-  - Bigger 30×18 apartment floor.
-  - Sofa first, then coffee table, bookshelf, living rug, floor lamp, plant and side table.
-  - Coffee table + bookshelf are heavy and require **both players on separate handles**.
-  - Smaller furniture is physically carried in front of the character.
-  - Glowing placement zones guide one task at a time.
-- **Fragile furniture damage**
-  - Lamp, plant and side table can crack from hard drops/collisions.
-  - A second severe impact can break them; a replacement respawns so the level remains finishable.
-  - A girlfriend BONK while carrying something fragile can make it drop and take damage.
-- **BONK knockdown**
-  - Player 2 can press **F** (or BONK on mobile) near Player 1.
-  - Player 1 falls over briefly before recovering.
-- **Shared fire safety**
-  - Either player can pick up and use the extinguisher during a kitchen fire.
-- **Character customization**
-  - 5 skin-tone choices.
-  - Casual, kurta or salwar-kameez outfit.
-  - Optional dupatta.
-  - Optional sunflower for her.
-  - Softer/cuter faces, larger eyes and improved silhouettes.
-- Keeps v1.2 mobile controls and v1.1 interactive kitchen:
-  - WASD **or Arrow Keys** online.
-  - Mobile joystick + ACT + BONK.
-  - Wash vegetables, chop in close-up, pour pasta, tip ingredients, cook/stir, sink flood, fire, serve plates.
-  - Kevin no longer moves ingredient positions.
+- Setup/lobby overlays can now scroll properly on short laptop screens and phones.
+- Railway assets are served with `no-store` plus v1.4 cache-busting query strings so an old JS/CSS build is much less likely to remain stuck in the browser cache.
+- Trial One is now visibly one **7-piece Arrange Our Home** sequence from the beginning:
+  1. Sofa
+  2. Coffee table
+  3. Bookshelf
+  4. Living rug
+  5. Floor lamp
+  6. Plant
+  7. Side table
+- The apartment floor is larger, with the movable furniture staged visibly in the starting room.
+- The currently required furniture gets a gold pickup halo/tag and a glowing destination.
+- Heavy furniture still needs both players; fragile decor can crack/break from bad drops or a badly timed bonk.
+- Girlfriend bonk still knocks the other character down briefly.
+- Both characters can still use the extinguisher.
+- Salwar kameez, dupatta, sunflower and skin-tone customization remain.
+- **Ingredient prep has no countdown now.** Pasta/vegetable fetch/wash/chop/handoff can be done at your own pace. The normal cooking meter still matters after the stove is turned on.
+- Partner quiz expanded from 4 to **8 questions** (maximum understanding score 16).
 
 ## Run locally
 
-Requires Node.js 20+.
-
-```bash
+```bat
 npm start
 ```
 
-Open:
+Open `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+For a two-player same-PC test, use one normal Chrome window and one Incognito window, create a private room in one, then join it from the other.
 
-Health endpoint:
+## Automated checks
 
-```text
-/healthz
-```
-
-## Test
-
-```bash
+```bat
 npm test
 ```
 
-The smoke test verifies room creation/join, character-profile sync, start sync, WASD/arrow/F input relay, snapshots and flow events.
-
-## Railway
-
-This project is already Railway-friendly. If your existing GitHub repository is connected to Railway, copy this version into that repository folder, commit, and push:
-
-```bash
-git add -A
-git commit -m "feat: add cozy home customization and chaos physics"
-git push
-```
-
-Railway should deploy the new commit to the same public URL.
+This runs the multiplayer API/SSE smoke test and the v1.4 regression checks.

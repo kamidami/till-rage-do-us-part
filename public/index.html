@@ -7,8 +7,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#160d20" />
-  <title>Till Rage Do Us Part — Cozy Home & Character Update</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title>Till Rage Do Us Part — Home Fix & Relaxed Kitchen</title>
+  <link rel="stylesheet" href="css/style.css?v=1.4.0" />
 </head>
 <body>
   <div id="game-shell">
@@ -17,8 +17,8 @@
     <div id="hud" class="hidden">
       <div class="hud-top glass">
         <div class="objective-copy">
-          <div class="eyebrow">COMPATIBILITY INSPECTION <span id="crisis-count">1/3</span></div>
-          <div id="objective">Escape the cursed rug with the sofa.</div>
+          <div class="eyebrow">COMPATIBILITY INSPECTION <span id="crisis-count">1/7</span></div>
+          <div id="objective">1/7 SOFA — carry it through the apartment to the glowing living-room spot.</div>
         </div>
         <div class="hud-actions">
           <button id="skip-level-btn" class="mini-btn skip-btn" title="Skip this level and continue">⏭ Skip Level</button>
@@ -27,9 +27,13 @@
       </div>
 
       <div id="crisis-track" class="crisis-track glass">
-        <div class="crisis-step active" data-step="0"><b>1</b><span>Cursed Rug</span></div>
-        <div class="crisis-step" data-step="1"><b>2</b><span>Petty Door</span></div>
-        <div class="crisis-step" data-step="2"><b>3</b><span>Cozy Corner</span></div>
+        <div class="crisis-step active" data-step="0"><b>1</b><span>Sofa</span></div>
+        <div class="crisis-step" data-step="1"><b>2</b><span>Coffee Table</span></div>
+        <div class="crisis-step" data-step="2"><b>3</b><span>Bookshelf</span></div>
+        <div class="crisis-step" data-step="3"><b>4</b><span>Rug</span></div>
+        <div class="crisis-step" data-step="4"><b>5</b><span>Lamp</span></div>
+        <div class="crisis-step" data-step="5"><b>6</b><span>Plant</span></div>
+        <div class="crisis-step" data-step="6"><b>7</b><span>Side Table</span></div>
       </div>
 
       <div id="kitchen-status" class="kitchen-status hidden">
@@ -109,9 +113,9 @@
     <section id="online-screen" class="overlay active">
       <div class="online-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">ONLINE CO-OP v1.3 · COZY HOME + CUSTOM CHARACTERS</div>
+        <div class="version-chip">ONLINE CO-OP v1.4 · HOME FIX + RELAXED KITCHEN</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
-        <p class="tagline">Create one private room, customize your characters, send the code to your partner, and arrange a much bigger cursed apartment together from two different phones or computers.</p>
+        <p class="tagline">Create a private room, customize your characters, then arrange the full apartment together. The first trial now clearly includes every furniture task instead of hiding them behind the sofa.</p>
 
         <div id="connection-state" class="connection-state connecting">● Connecting to game server…</div>
 
@@ -164,7 +168,7 @@
     <section id="start-screen" class="overlay">
       <div class="start-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">WEB BUILD v1.3 · COZY HOME + CUSTOM CHARACTERS</div>
+        <div class="version-chip">WEB BUILD v1.4 · HOME FIX + RELAXED KITCHEN</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
         <p class="tagline">A cursed apartment, one suspicious lease, and a relationship inspection conducted by a teddy bear with no visible qualifications.</p>
 
@@ -189,7 +193,7 @@
 
         <div class="mission-box">
           <strong>Episode 1: The Lease From Hell</strong>
-          <span>First arrange your bigger apartment together: sofa, coffee table, bookshelf and fragile decor. Then survive the interactive kitchen. Hard drops can damage sensitive furniture, and girlfriend bonks can literally knock you down.</span>
+          <span>Arrange seven home items together: sofa, coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces can crack or break. Then survive the kitchen with relaxed ingredient prep and the same chaotic cooking.</span>
         </div>
 
         <div class="route-select">
@@ -202,7 +206,7 @@
         </div>
 
         <button id="play-btn" class="primary-btn">SIGN THE TERRIBLE LEASE ♥</button>
-        <p class="micro">Best played together on one keyboard. In the kitchen: the CHEF watches the pot, the RUNNER brings the next glowing ingredient, and some ingredients are now urgently needed before dinner starts burning.</p>
+        <p class="micro">Best played together. In the kitchen, ingredient preparation has NO countdown now: wash, chop and hand off at your own pace. The cooking meter only starts judging you after the stove is turned on.</p>
       </div>
     </section>
 
@@ -223,7 +227,7 @@
     <section id="quiz-screen" class="overlay">
       <div class="quiz-card glass-heavy">
         <div class="version-chip">TRIAL THREE · DO YOU ACTUALLY LISTEN?</div>
-        <div class="quiz-topline"><span id="quiz-progress">QUESTION 1 / 4</span><span id="understanding-live">UNDERSTANDING 0 / 8</span></div>
+        <div class="quiz-topline"><span id="quiz-progress">QUESTION 1 / 8</span><span id="understanding-live">UNDERSTANDING 0 / 16</span></div>
         <h2 id="quiz-prompt">Question</h2>
         <p id="quiz-instruction" class="quiz-instruction">Choose your own answer privately.</p>
 
@@ -265,7 +269,7 @@
           <div><span id="time-score">00:00</span><small>TOTAL CO-OP TIME</small></div>
           <div><span id="patience-score">100%</span><small>REMAINING DIGNITY</small></div>
           <div><span id="chaos-score">0</span><small>CHAOS</small></div>
-          <div><span id="understanding-score">0/8</span><small>UNDERSTANDING</small></div>
+          <div><span id="understanding-score">0/16</span><small>UNDERSTANDING</small></div>
         </div>
         <div id="relationship-grade" class="relationship-grade">Compatibility grade: suspiciously healthy</div>
         <div class="next-episode">NEXT: <strong>Pack For Vacation</strong> — one suitcase, too many opinions, and several items nobody remembers packing.</div>
@@ -277,9 +281,9 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/net.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/mobile.js"></script>
+  <script src="js/config.js?v=1.4.0"></script>
+  <script src="js/net.js?v=1.4.0"></script>
+  <script src="js/game.js?v=1.4.0"></script>
+  <script src="js/mobile.js?v=1.4.0"></script>
 </body>
 </html>

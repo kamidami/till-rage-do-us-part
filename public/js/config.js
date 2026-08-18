@@ -1,10 +1,10 @@
 // =============================================================
-// TILL RAGE DO US PART v1.3 — COZY HOME + CUSTOM CHARACTERS
+// TILL RAGE DO US PART v1.4 — HOME FIX + RELAXED KITCHEN
 // Easy-to-edit values live here.
 // =============================================================
 window.GAME_CONFIG = {
   title: "Till Rage Do Us Part",
-  build: "v1.3 Cozy Home + Custom Characters",
+  build: "v1.4 Home Fix + Relaxed Kitchen",
 
   playerSpeed: 4.45,
   playerRadius: 0.46,
@@ -28,9 +28,9 @@ window.GAME_CONFIG = {
   patienceRecovery: 1.0,
 
   winHoldSeconds: 1.35,
-  goalCenter: { x: 10.2, z: 0.0 },
+  goalCenter: { x: 10.8, z: 0.0 },
   goalHalfSize: { x: 2.15, z: 2.1 },
-  rug: { minX: -12.9, maxX: -4.2, minZ: -4.0, maxZ: 4.0 },
+  rug: { minX: -14.8, maxX: -5.0, minZ: -4.4, maxZ: 4.4 },
   doorwayPassedX: 1.35,
 
   pettyDoor: {
@@ -69,7 +69,7 @@ window.GAME_CONFIG = {
       kicker: "TRIAL ONE · SHARED DECISIONS",
       title: "Arrange Our Home",
       speaker: "Dr. Fluffles",
-      text: "First get the sofa through, then arrange the coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces dislike hard drops. I will be observing professionally and enjoying this personally."
+      text: "This is one full seven-piece home-arrangement trial: sofa, coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces can crack or break. Nothing is secretly postponed behind an old three-step sofa tutorial anymore."
     }
   ],
 
@@ -89,6 +89,22 @@ window.GAME_CONFIG = {
     {
       prompt: "When plans completely collapse, your instinct is…",
       options: ["Improvise", "Make a new plan", "Laugh at the disaster", "Blame Google Maps"]
+    },
+    {
+      prompt: "When you are both hungry and nobody can choose food, YOU usually…",
+      options: ["Pick something fast", "Ask them to choose", "Open every delivery app", "Become dramatically indecisive"]
+    },
+    {
+      prompt: "What kind of affection softens YOU fastest?",
+      options: ["A long hug", "Holding hands", "A sweet message", "Making me laugh"]
+    },
+    {
+      prompt: "Your perfect lazy weekend morning is…",
+      options: ["Sleep forever", "Breakfast together", "Movie in bed", "Go outside eventually"]
+    },
+    {
+      prompt: "When your partner looks stressed, your first instinct is…",
+      options: ["Ask what happened", "Give a hug", "Bring food or tea", "Give them quiet space"]
     }
   ],
 

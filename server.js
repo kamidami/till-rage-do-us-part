@@ -107,7 +107,7 @@ function staticFile(req, res, url) {
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Content-Length': stat.size,
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600'
+      'Cache-Control': 'no-store, max-age=0, must-revalidate'
     });
     fs.createReadStream(file).pipe(res);
     return true;

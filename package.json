@@ -1,13 +1,13 @@
 {
   "name": "till-rage-do-us-part-online",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
-  "description": "Two-player online co-op web game for couples",
+  "description": "Two-player online co-op couple game \u2014 home arrangement + relaxed kitchen",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node tests/multiplayer-smoke.js"
+    "test": "node tests/multiplayer-smoke.js && node tests/v14-regression.js"
   },
   "engines": {
     "node": ">=20"

@@ -1,24 +1,22 @@
-TILL RAGE DO US PART — ONLINE v1.3
+TILL RAGE DO US PART — ONLINE v1.4
+HOME FIX + RELAXED KITCHEN
 
 LOCAL TEST
-1. Open this folder in Command Prompt / Terminal.
+1. Open CMD in this folder.
 2. Run: npm start
-3. Open http://localhost:3000
+3. Open: http://localhost:3000
+4. Use a normal Chrome window + Incognito window to test both online players on one PC.
 
-ONLINE
-- Create Private Room.
-- Choose your name, skin tone and outfit.
-- Send the room code to your partner.
-- Partner chooses her own character look and joins.
-- Host starts the episode.
+VERIFY THESE FIRST
+- Setup page scrolls all the way to the bottom.
+- Trial One HUD says 1/7 and shows Sofa, Coffee Table, Bookshelf, Rug, Lamp, Plant, Side Table.
+- After sofa placement, Coffee Table becomes 2/7 and glows with its destination.
+- Fragile lamp/plant/side table can crack or break from hard drops.
+- Her F/BONK knocks the other character down briefly.
+- Salwar kameez + dupatta display correctly.
+- In the kitchen there is NO ingredient-prep countdown for pasta/tomato/onion.
+- Cooking still begins after the stove is switched on.
+- Quiz contains 8 questions.
 
-CONTROLS
-Desktop: WASD or Arrow Keys = move, E = interact, Her: F = BONK.
-Mobile: left joystick = move, ACT = interact, Her: BONK button.
-
-NEW FIRST LEVEL
-Arrange Our Home: sofa + coffee table + bookshelf + rug + lamp + plant + side table.
-Heavy furniture needs both players. Fragile decor can crack/break from hard drops.
-
-KITCHEN
-Either partner may use the fire extinguisher.
+AUTOMATED TEST
+npm test
