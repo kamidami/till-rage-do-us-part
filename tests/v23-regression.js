@@ -8,8 +8,8 @@ const server=fs.readFileSync(path.join(root,'server.js'),'utf8');
 function expect(cond,msg){if(!cond)throw new Error(msg)}
 
 expect(index.includes('🍿 Movie Night'),'Movie Night route label missing');
-expect(/MOVIE NIGHT .* · v2\.3(?:\.1)?/.test(index),'v2.3.x local version chip missing');
-expect(index.includes('ONLINE CO-OP v2.3.1') || index.includes('ONLINE CO-OP v2.3'),'v2.3.x online version chip missing');
+expect(index.includes('DIRECT FARMING · v2.5')||index.includes('SUNFLOWERS FOR TWO · v2.4')||/MOVIE NIGHT .* · v2\.3/.test(index),'current local version chip missing');
+expect(index.includes('ONLINE CO-OP v2.5')||index.includes('ONLINE CO-OP v2.4')||index.includes('ONLINE CO-OP v2.3'),'current online version chip missing');
 expect(!/tea ritual|Rainy Evening/i.test(index),'old tea chapter still visible in menu copy');
 expect(game.includes('CHAPTER THREE · MOVIE NIGHT'),'movie chapter intro missing');
 expect(game.includes('Movie Night Mayhem'),'movie chapter banner/HUD missing');
@@ -25,6 +25,6 @@ expect(css.includes('data-task-type="movie-pick"'),'movie pick visuals missing')
 expect(css.includes('data-task-type="movie-popcorn"'),'movie popcorn visuals missing');
 expect(!/tea-fill|tea-brew|tea-pour|tea-stir|tea-snack/i.test(game),'old tea mini-game implementation remains');
 expect(!/biscuitsPlated|mugsPoured|mugsPrepared|teaChosen|kettleFilled|waterBoiled/i.test(game),'old tea chapter state remains');
-expect(server.includes("['full', 'kitchen', 'rain', 'quiz']"),'legacy network route compatibility changed');
+expect(server.includes("['full', 'kitchen', 'rain', 'farm', 'quiz']"),'network route list missing Movie Night/Farm compatibility');
 expect(!/laundry|washer|sock/i.test(game),'removed Laundry implementation returned');
 console.log('V2.3 MOVIE NIGHT REGRESSION TEST PASSED');

@@ -1,0 +1,6 @@
+/* v2.5 — Direct Farming / field-work polish */
+body.farm-mode #objective{max-width:min(760px,72vw)!important;line-height:1.25!important}
+body.farm-mode .action-card.ready-action{box-shadow:0 0 0 1px rgba(192,229,142,.08),0 10px 28px rgba(35,54,28,.16)!important}
+body.farm-mode .action-card.ready-action::after{content:"WORK";font-size:.48rem;letter-spacing:.14em;opacity:.55;margin-left:auto}
+body.farm-mode #kitchen-task-screen:not(.hidden){backdrop-filter:blur(5px)}
+body.farm-mode .controls-pill::after{content:"  •  FARM: walk to soil + E to use held tool";opacity:.72}

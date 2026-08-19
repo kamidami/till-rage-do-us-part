@@ -179,7 +179,7 @@ async function api(req, res, url) {
       if (who.role !== 'host') return json(res, 403, { ok: false, error: 'Only the host can start.' });
       if (!room.guest) return json(res, 409, { ok: false, error: 'Wait for your partner to join.' });
       room.started = true;
-      const route = ['full', 'kitchen', 'rain', 'quiz'].includes(body.route) ? body.route : 'full';
+      const route = ['full', 'kitchen', 'rain', 'farm', 'quiz'].includes(body.route) ? body.route : 'full';
       emitTo(room, 'all', 'game:start', { names: [room.host.name, room.guest.name], profiles: [room.host.profile, room.guest.profile], route, startedAt: Date.now() });
       return json(res, 200, { ok: true });
     }

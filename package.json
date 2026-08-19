@@ -1,13 +1,13 @@
 {
   "name": "till-rage-do-us-part-online",
-  "version": "2.3.2",
+  "version": "2.5.0",
   "private": true,
-  "description": "Cozy narrative online co-op couple game \u2014 Movie Night blanket pickup and sofa orientation hotfix",
+  "description": "Cozy narrative online co-op couple game — direct 3D sunflower farming with held tools, shovel strokes, deforming soil beds, visible seed planting, and watering",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node tests/multiplayer-smoke.js && node tests/v23-regression.js && node tests/v231-regression.js && node tests/v232-regression.js"
+    "test": "node tests/multiplayer-smoke.js && node tests/v23-regression.js && node tests/v231-regression.js && node tests/v232-regression.js && node tests/v24-farm-regression.js && node tests/v25-farm-realism-regression.js"
   },
   "engines": {
     "node": ">=20"

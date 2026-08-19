@@ -1,5 +1,5 @@
-TILL RAGE DO US PART — ONLINE v2.3
-MOVIE NIGHT UPDATE
+TILL RAGE DO US PART — ONLINE v2.5
+DIRECT FARMING UPDATE
 
 LOCAL TEST
 1. Open CMD in this folder.
@@ -7,23 +7,38 @@ LOCAL TEST
 3. Open: http://localhost:3000
 4. For two-player testing on one PC, use normal Chrome + Incognito.
 
+FASTEST FARM TEST
+- On the start menu choose: 🌻 Sunflower Farm
+- Clear the visible weed + stone pairs directly in the field.
+- Walk to the shovel rack and press interact to pick up a shovel.
+- Each soil bed needs TWO visible shovel strokes. Let each swing finish before the next press.
+- Pick up compost and spread it bed by bed.
+- Pick up a rake and smooth every loosened bed.
+- Pick up a hand trowel and make the visible planting holes.
+- Pick up the sunflower seed pouch and place seeds into the holes. Seeds stay visible.
+- Cover + pat each pair of seeds; the holes close into small soil mounds.
+- Pick up a watering can and water every bed. Dry soil should visibly turn darker/wet.
+- Sprouts then appear; irrigation / scarecrow / stem support use the special task panel.
+- For final watering BOTH players must pick up watering cans and take opposite glowing sides. No timer.
+- The field should bloom before Questions begin.
+
 VISUAL / UX CHECK
-- HOME: movement should stay stable around furniture and walls.
-- HOME: action cards should clearly say approach/grab/carry/place.
-- KITCHEN: washing/chopping/pouring close-ups should remain interactive and untimed during prep.
-- MOVIE NIGHT: top track should show 8 steps.
-- MOVIE NIGHT: search sofa -> remote -> TV -> choose movie -> popcorn -> serve -> blanket -> sit together.
-- MOVIE NIGHT: search, movie choice and popcorn should each open a visually distinct close-up.
-- MOVIE NIGHT: Kevin, fairy lights and window are optional and never block progress.
-- QUESTIONS: 12 questions, maximum Understanding 24.
+- Shovel/rake/trowel/watering can should visibly sit in the character's hands.
+- Digging should lean the body and swing the tool into the soil instead of opening a progress popup.
+- Dug soil should become clumpy; raking should flatten it again.
+- Planting holes and seeds should be visible in the actual 3D field.
+- Watering should create blue water feedback and visibly darken the soil.
+- Core soil/seed work should NOT open the large task window.
+- Kevin and the little farm bell remain optional interactions.
+- HOME/KITCHEN/MOVIE NIGHT fixes remain intact.
 - There is NO Laundry chapter and NO tea chapter.
 
 MULTIPLAYER CHECK
 - Create a private room in window 1.
 - Join the code in window 2.
-- Start Movie Night for the fastest test.
-- Make sure only the active close-up player is locked; partner can still move.
-- Verify remote, popcorn and blanket carry state sync on both windows.
+- Start 🌻 Sunflower Farm.
+- Tool held state, dug beds, compost, raking, holes, seeds, covered soil and watered beds should sync to guest.
+- Final watering should remember one side until the other player arrives.
 
 AUTOMATED TEST
 npm test

@@ -83,10 +83,10 @@ async function openSSE(url) {
     if (state.players[1].profile?.outfit !== 'salwar' || !state.players[1].profile?.dupatta) throw new Error('Character profile did not sync');
 
     const startPromise = guestSSE.next('game:start');
-    const started = await post(`/api/rooms/${created.code}/start`, { token: created.token, route: 'rain' });
+    const started = await post(`/api/rooms/${created.code}/start`, { token: created.token, route: 'farm' });
     if (!started.ok) throw new Error('Start failed');
     const start = await startPromise;
-    if (start.route !== 'rain') throw new Error('Start route mismatch');
+    if (start.route !== 'farm') throw new Error('Start route mismatch');
     if (start.profiles?.[0]?.outfit !== 'kurta' || start.profiles?.[1]?.outfit !== 'salwar') throw new Error('Start profiles mismatch');
 
     const inputPromise = hostSSE.next('player:input');

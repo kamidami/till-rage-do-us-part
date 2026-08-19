@@ -1,0 +1,15 @@
+const fs=require('fs');const path=require('path');const assert=require('assert');
+const root=path.join(__dirname,'..');const game=fs.readFileSync(path.join(root,'public/js/game.js'),'utf8');const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
+assert(game.includes("FARM_DIRECT_LAST_STAGE = 7"),'direct farming stages missing');
+assert(game.includes("kind==='shovel'"),'shovel model missing');
+assert(game.includes("farmHeldTool"),'held tool state missing');
+assert(game.includes("Drive shovel into this bed"),'direct shovel interaction missing');
+assert(game.includes("c.digHits=Math.min(2,c.digHits+1)"),'repeated dig strokes missing');
+assert(game.includes("h.seed.visible=h.seeded&&!h.covered"),'visible seed state missing');
+assert(game.includes("c.wet.material.opacity=c.watered?.34:0"),'wet soil state missing');
+assert(game.includes("spawnWaterBurst"),'watering feedback missing');
+assert(game.includes("applyFarmPlayerPose"),'farm action posing missing');
+assert(game.includes("cleanup:f.cleanupPairs.map"),'farm multiplayer progress snapshot missing');
+assert(html.includes('css/v25.css?v=2.5.0'),'v2.5 CSS not loaded');
+assert(html.includes('js/game.js?v=2.5.0'),'v2.5 game asset not cache-busted');
+console.log('V2.5 DIRECT FARMING REGRESSION TEST PASSED');

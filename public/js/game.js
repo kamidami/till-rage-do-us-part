@@ -27,6 +27,8 @@
   let dinnerStartTime = 0;
   let dinnerTime = 0;
   let rainTime = 0;
+  let farmTime = 0;
+  let movieChoiceFinal = null;
   let storyMode = 'intro';
   let startRoute = 'full';
   const skippedLevels = new Set();
@@ -50,6 +52,7 @@
     vase: null,
     dinner: null,
     rain: null,
+    farm: null,
     menuActors: [],
     arrange: null,
     bounds: { minX: -16.45, maxX: 16.45, minZ: -9.45, maxZ: 9.45 }
@@ -164,6 +167,9 @@
       this.lastDinnerInteract = -9999;
       this.homeHeldItem = null;
       this.rainHeldItem = null;
+      this.farmHeldTool = null;
+      this.farmHeldVisual = null;
+      this.farmAction = null;
       this.homeGrabItem = null;
       this.homeGrabSide = null;
       this.knockedUntil = 0;
@@ -190,7 +196,7 @@
       const x = (bindingDown(this.controls.right) ? 1 : 0) - (bindingDown(this.controls.left) ? 1 : 0);
       const z = (bindingDown(this.controls.back) ? 1 : 0) - (bindingDown(this.controls.forward) ? 1 : 0);
       const movementRequested = Math.abs(x) + Math.abs(z) > 0;
-      const mini = currentLevel === 'dinner' ? world.dinner?.mini : currentLevel === 'rain' ? world.rain?.mini : null;
+      const mini = currentLevel === 'dinner' ? world.dinner?.mini : currentLevel === 'rain' ? world.rain?.mini : currentLevel === 'farm' ? world.farm?.mini : null;
       if (mini?.active && mini.playerIndex === players.indexOf(this)) {
         if (movementRequested) {
           cancelActiveMiniForMovement(this);
@@ -215,7 +221,7 @@
       const stop = onRug ? C.rugStop : C.normalStop;
 
       const heavyCarry = this.grabbing || this.homeGrabItem;
-      const lightCarry = this.homeHeldItem || this.heldItem || this.rainHeldItem;
+      const lightCarry = this.homeHeldItem || this.heldItem || this.rainHeldItem || this.farmHeldTool;
       const loadFactor = heavyCarry ? 0.72 : lightCarry ? 0.88 : 1;
       this.velocity.x = damp(this.velocity.x, dir.x * C.playerSpeed * loadFactor, accel, dt);
       this.velocity.z = damp(this.velocity.z, dir.z * C.playerSpeed * loadFactor, accel, dt);
@@ -296,6 +302,10 @@
         this.group.userData.heart.visible = this.canGrab;
         updateRainHeldItem(this);
         this.patience = clamp(this.patience + C.patienceRecovery * 1.0 * dt, 0, 100);
+      } else if (currentLevel === 'farm') {
+        this.canGrab = !!nearestFarmAction(this);
+        this.group.userData.heart.visible = this.canGrab;
+        this.patience = clamp(this.patience + C.patienceRecovery * 1.15 * dt, 0, 100);
       }
 
       updateCarryPose(this);
@@ -311,6 +321,10 @@
       }
       if (currentLevel === 'rain') {
         rainInteract(this);
+        return;
+      }
+      if (currentLevel === 'farm') {
+        farmInteract(this);
         return;
       }
       if (world.arrange?.active) {
@@ -358,6 +372,9 @@
       this.lastDinnerInteract = -9999;
       this.homeHeldItem = null;
       this.rainHeldItem = null;
+      if (this.farmHeldVisual) { this.group.remove(this.farmHeldVisual); this.farmHeldVisual = null; }
+      this.farmHeldTool = null;
+      this.farmAction = null;
       this.homeGrabItem = null;
       this.homeGrabSide = null;
       this.knockedUntil = 0;
@@ -1387,6 +1404,7 @@
     if (body && performance.now() >= (player.knockedUntil || 0)) {
       body.rotation.x = damp(body.rotation.x || 0, carrying ? -0.06 : speed * 0.035, 8, 0.016);
     }
+    if (currentLevel === 'farm') applyFarmPlayerPose(player);
   }
 
   function updatePlayerFace(player) {
@@ -1625,6 +1643,13 @@
       updateRainMiniUI();
       updateRainHUD();
       toast(`${player.name} stepped away. Cozy task cancelled — nothing lost.`);
+      return true;
+    }
+    if (currentLevel === 'farm' && world.farm?.mini?.active && world.farm.mini.playerIndex === idx) {
+      world.farm.mini = null;
+      updateFarmMiniUI();
+      updateFarmHUD();
+      toast(`${player.name} stepped away. Farm task paused — the sunflowers are patient.`);
       return true;
     }
     return false;
@@ -1936,14 +1961,14 @@
   function showDinnerIntro() {
     storyMode = 'dinner';
     $('hud').classList.add('hidden');
-    document.body.classList.remove('kitchen-mode','rain-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
     const chef = players[kitchenChefIndex];
     const runner = players[kitchenChefIndex === 0 ? 1 : 0];
     $('story-kicker').textContent = 'CHAPTER TWO · DINNER DATE';
     $('story-speaker').textContent = 'Dr. Fluffles';
     $('story-title').textContent = 'Dinner Date From Hell';
     $('story-text').textContent = `${chef.name} is the CHEF: add delivered ingredients, stir, and control the stove. ${runner.name} is the RUNNER: fetch ingredients, wash vegetables, chop them, and bring them to the prep tray. Preparation has no countdown. The only pressure begins after you deliberately turn the stove on.`;
-    $('story-progress').textContent = 'CHAPTER 2 / 3 · COOK TOGETHER';
+    $('story-progress').textContent = 'CHAPTER 2 / 4 · COOK TOGETHER';
     $('story-next').textContent = 'ENTER THE KITCHEN ♥';
     $('story-skip-level').classList.remove('hidden');
     $('story-screen').classList.add('active');
@@ -1991,6 +2016,7 @@
     world.arrange = null;
     world.dinner = null;
     world.rain = null;
+    world.farm = null;
     world.bounds = { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
 
     buildKitchenWorld();
@@ -3180,7 +3206,7 @@
     $('story-speaker').textContent='Narrator';
     $('story-title').textContent='One sofa. One remote. Zero agreement on the movie.';
     $('story-text').textContent='Dinner is over. Build the perfect movie night together: warm the room, search the sofa for the missing remote, turn on the TV, choose tonight’s questionable masterpiece, make popcorn, carry it over, claim the blanket, and sit down together. No timer. Just cozy teamwork and Kevin-related obstruction.';
-    $('story-progress').textContent='CHAPTER 3 / 3 · UNWIND';
+    $('story-progress').textContent='CHAPTER 3 / 4 · UNWIND';
     $('story-next').textContent='START MOVIE NIGHT 🍿';
     $('story-skip-level').classList.remove('hidden');
     $('story-screen').classList.add('active');
@@ -3313,7 +3339,7 @@
     const preserved=players.map(p=>p.patience);
     clearKitchenRolePresentation();
     scene=new THREE.Scene();scene.background=new THREE.Color(0x19202c);scene.fog=new THREE.Fog(0x19202c,21,43);
-    world.colliders=[];world.particles=[];world.sofa=null;world.goalRing=null;world.goalHeart=null;world.rug=null;world.door=null;world.cat=null;world.vase=null;world.arrange=null;world.dinner=null;world.rain=null;
+    world.colliders=[];world.particles=[];world.sofa=null;world.goalRing=null;world.goalHeart=null;world.rug=null;world.door=null;world.cat=null;world.vase=null;world.arrange=null;world.dinner=null;world.rain=null;world.farm=null;
     world.bounds={minX:-9.35,maxX:9.35,minZ:-5.95,maxZ:5.95};buildRainWorld();
     scene.add(new THREE.HemisphereLight(0xd5e0ed,0x2d2831,1.0));const warm=new THREE.DirectionalLight(0xffdfc5,1.1);warm.position.set(-4,8,5);warm.castShadow=true;scene.add(warm);
     // Spawn inside the living-room composition instead of at the far edge of the map.
@@ -3521,9 +3547,416 @@
   function finishRainTrial() {
     if(won||currentLevel!=='rain')return;won=true;gameStarted=false;rainTime=Math.max(.1,elapsed);
     players[0].group.position.set(3.55,0,1.55);players[1].group.position.set(4.65,0,1.55);players[0].group.rotation.y=players[1].group.rotation.y=Math.PI;
-    spawnBonkParticles(new THREE.Vector3(4.1,1.2,1.8),18);toast(`MOVIE NIGHT READY. ${world.rain?.movieChosen||'QUESTIONABLE CINEMA'} + POPCORN + BLANKET.`);setFluffles('You agreed on entertainment and reached the sofa without filing paperwork. I am alarmed by the progress.');
-    scheduleNetworkFlow('startPartnerQuiz',1100);
+    movieChoiceFinal = world.rain?.movieChosen || movieChoiceFinal || 'QUESTIONABLE CINEMA';
+    spawnBonkParticles(new THREE.Vector3(4.1,1.2,1.8),18);toast(`MOVIE NIGHT READY. ${movieChoiceFinal} + POPCORN + BLANKET.`);setFluffles('You agreed on entertainment and reached the sofa without filing paperwork. I am alarmed by the progress. Tomorrow, apparently, you are farmers.');
+    scheduleNetworkFlow('showFarmIntro',1100);
   }
+
+
+  // =============================================================
+  // CHAPTER FOUR — SUNFLOWERS FOR TWO
+  // A calm, tactile farm chapter with visible environmental growth.
+  // =============================================================
+
+  const FARM_TASKS = [
+    ['Clear Patch','Remove stones + weeds'],
+    ['Dig Soil','Work the shovel through the ground'],
+    ['Compost','Feed each soil bed'],
+    ['Rake Rows','Smooth the loosened earth'],
+    ['Seed Holes','Make real planting holes'],
+    ['Plant Seeds','Place sunflower seeds by hand'],
+    ['Cover Seeds','Pat the soil closed'],
+    ['First Water','Water the prepared beds'],
+    ['Irrigation','Connect the little pipes'],
+    ['Scarecrow','Protect the sprouts'],
+    ['Support Stems','Tie growing stems'],
+    ['Water Together','Bloom the field']
+  ];
+
+  const FARM_STATIONS = [
+    new THREE.Vector3(0,0,0), new THREE.Vector3(-7.0,0,-2.85), new THREE.Vector3(-6.65,0,3.2),
+    new THREE.Vector3(-5.35,0,-2.85), new THREE.Vector3(-6.0,0,-1.45), new THREE.Vector3(-5.45,0,3.0),
+    new THREE.Vector3(0,0,0), new THREE.Vector3(7.1,0,3.1), new THREE.Vector3(6.75,0,-2.65),
+    new THREE.Vector3(0,0,-4.2), new THREE.Vector3(0,0,.3), new THREE.Vector3(0,0,4.1)
+  ];
+
+  const FARM_DIRECT_LAST_STAGE = 7;
+  const FARM_TOOL_FOR_STAGE = {1:'shovel',2:'compost',3:'rake',4:'trowel',5:'seeds',7:'watering'};
+  const FARM_TOOL_LABEL = {shovel:'SHOVEL',compost:'COMPOST BAG',rake:'RAKE',trowel:'HAND TROWEL',seeds:'SEED POUCH',watering:'WATERING CAN'};
+
+  function showFarmIntro() {
+    storyMode='farm';
+    $('hud').classList.add('hidden');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
+    document.body.classList.add('farm-mode');
+    $('story-kicker').textContent='CHAPTER FOUR · SUNFLOWERS FOR TWO';
+    $('story-speaker').textContent='Dr. Fluffles';
+    $('story-title').textContent='An empty patch of dirt has made the mistake of trusting you.';
+    $('story-text').textContent='This time you work directly in the field. Pick up real tools, clear the patch, shovel each bed until the compact ground becomes loose, mix compost, rake it smooth, make visible holes, place the sunflower seeds, cover them, then water the soil until it darkens. The field changes under your feet instead of hiding the work behind progress bars.';
+    $('story-progress').textContent='CHAPTER 4 / 4 · GROW SOMETHING TOGETHER';
+    $('story-next').textContent='START WORKING THE FIELD 🌻';
+    $('story-skip-level').classList.remove('hidden');
+    $('story-screen').classList.add('active');
+  }
+
+  function makeFarmTool(kind) {
+    const g=new THREE.Group();
+    const wood=mat(0x98663f,.94),metal=mat(0x72797c,.42,.22),soft=mat(0xb69a68,.94);
+    if(kind==='watering'){
+      const body=mesh(new THREE.CylinderGeometry(.24,.28,.48,12),mat(0x7fa4a2,.48,.18),false,false);body.position.y=.28;g.add(body);
+      const top=mesh(new THREE.TorusGeometry(.22,.035,7,16,Math.PI),mat(0x6d9392,.52,.16),false,false);top.rotation.z=Math.PI;top.position.set(0,.56,0);g.add(top);
+      const spout=mesh(new THREE.CylinderGeometry(.055,.09,.62,8),mat(0x7fa4a2,.48,.18),false,false);spout.rotation.z=Math.PI/2.5;spout.position.set(.38,.35,.02);g.add(spout);return g;
+    }
+    if(kind==='seeds'){
+      const pouch=mesh(new THREE.BoxGeometry(.48,.58,.18),mat(0xd7b26f,.95),false,false);pouch.position.y=.3;pouch.rotation.z=.03;g.add(pouch);
+      const stripe=mesh(new THREE.BoxGeometry(.36,.08,.19),mat(0xf2d66d,.82),false,false);stripe.position.set(0,.36,.01);g.add(stripe);return g;
+    }
+    if(kind==='compost'){
+      const bag=mesh(new THREE.BoxGeometry(.58,.72,.28),soft,false,false);bag.position.y=.36;bag.rotation.z=-.04;g.add(bag);
+      const band=mesh(new THREE.BoxGeometry(.46,.1,.29),mat(0x6e7f4d,.86),false,false);band.position.set(0,.38,.01);g.add(band);return g;
+    }
+    const short=kind==='trowel';
+    const length=short?.62:1.45;
+    const handle=mesh(new THREE.CylinderGeometry(short?.035:.045,short?.04:.05,length,8),wood,false,false);handle.position.y=length*.52;handle.rotation.z=.04;g.add(handle);
+    if(kind==='shovel'){
+      const blade=mesh(new THREE.CylinderGeometry(.02,.25,.38,7,1,false,0,Math.PI),metal,false,false);blade.rotation.z=Math.PI;blade.rotation.x=Math.PI/2;blade.position.set(.02,.055,.04);g.add(blade);
+      const collar=mesh(new THREE.CylinderGeometry(.065,.065,.22,8),metal,false,false);collar.position.y=.22;g.add(collar);
+    }
+    if(kind==='trowel'){
+      const blade=mesh(new THREE.ConeGeometry(.13,.34,7),metal,false,false);blade.rotation.z=Math.PI;blade.position.y=.02;g.add(blade);
+    }
+    if(kind==='rake'){
+      const head=mesh(new THREE.BoxGeometry(.62,.055,.12),metal,false,false);head.position.set(.02,.07,0);g.add(head);
+      for(let i=-2;i<=2;i++){const t=mesh(new THREE.BoxGeometry(.025,.23,.025),metal,false,false);t.position.set(i*.13,-.11,.04);head.add(t);}
+    }
+    return g;
+  }
+
+  function makeSunflowerPlant(x,z,special=false) {
+    const g=new THREE.Group();
+    const stem=mesh(new THREE.CylinderGeometry(.035,.05,2.05,8),mat(0x4f8b4b,.88),false,false);stem.position.y=1.02;g.add(stem);
+    const leaf1=mesh(new THREE.SphereGeometry(.18,9,6),mat(0x5ca45b,.9),false,false);leaf1.scale.set(1.6,.35,.8);leaf1.position.set(.18,.72,0);leaf1.rotation.z=.45;g.add(leaf1);
+    const leaf2=leaf1.clone();leaf2.position.set(-.17,1.1,.02);leaf2.rotation.z=-.5;g.add(leaf2);
+    const head=new THREE.Group();head.position.y=2.08;
+    const center=mesh(new THREE.CylinderGeometry(.24,.24,.09,18),mat(special?0x6d3a23:0x684024,.92),false,false);center.rotation.x=Math.PI/2;head.add(center);
+    for(let i=0;i<12;i++){const a=i*Math.PI*2/12;const petal=mesh(new THREE.SphereGeometry(.15,8,6),mat(special?0xffd85c:0xf7c948,.9),false,false);petal.scale.set(1.55,.42,.72);petal.position.set(Math.cos(a)*.31,Math.sin(a)*.31,.01);petal.rotation.z=a;head.add(petal);}
+    head.rotation.x=-.12;g.add(head);
+    const bud=mesh(new THREE.SphereGeometry(.16,9,7),mat(0x5e8f48,.9),false,false);bud.position.y=2.05;g.add(bud);
+    g.position.set(x,0,z);g.scale.set(1,.04,1);g.userData={stem,head,bud,leaf1,leaf2,special};head.visible=false;bud.visible=false;leaf1.visible=false;leaf2.visible=false;scene.add(g);return g;
+  }
+
+  function makeFarmToolStation(kind,pos,label) {
+    const props=[];
+    for(const offset of [-.34,.34]){
+      const tool=makeFarmTool(kind);tool.position.copy(pos).add(new THREE.Vector3(offset,0,0));
+      if(['shovel','rake'].includes(kind)){tool.rotation.z=offset<0?.22:-.18;tool.rotation.x=.04;}
+      if(kind==='trowel')tool.rotation.z=offset<0?.5:.25;
+      scene.add(tool);props.push(tool);
+    }
+    const tag=makeTextSprite(label,'rgba(65,49,34,.88)','#fff4c8');tag.position.copy(pos).add(new THREE.Vector3(0,1.35,0));tag.scale.set(.85,.22,1);scene.add(tag);
+    return {kind,pos:pos.clone(),props,tag};
+  }
+
+  function buildFarmWorld() {
+    const grass=mesh(new THREE.BoxGeometry(22,.18,15),mat(0x78945f,.98),false,true);grass.position.y=-.13;scene.add(grass);
+    const path=mesh(new THREE.BoxGeometry(3.2,.035,14.4),mat(0xc9ad83,.98),false,true);path.position.set(-8.35,-.02,0);scene.add(path);
+    const fenceMat=mat(0xb58a61,.94);
+    for(const x of [-10.4,10.4])for(let z=-6.6;z<=6.6;z+=2.15){const p=mesh(new THREE.BoxGeometry(.14,1.0,.14),fenceMat);p.position.set(x,.48,z);scene.add(p);}
+    for(let x=-10.4;x<=10.4;x+=2.15){const p=mesh(new THREE.BoxGeometry(.14,1.0,.14),fenceMat);p.position.set(x,.48,-7.1);scene.add(p);}
+    for(const [x,z,w,d] of [[-10.4,0,.1,14],[10.4,0,.1,14],[0,-7.1,21,.1]])for(const y of [.32,.72]){const rail=mesh(new THREE.BoxGeometry(w||.1,.10,d||.1),fenceMat,false,false);rail.position.set(x,y,z);scene.add(rail);}
+
+    const shed=mesh(new THREE.BoxGeometry(2.8,2.0,2.25),mat(0xd8b17b,.95));shed.position.set(-8.15,1.0,-4.9);scene.add(shed);
+    const roof=mesh(new THREE.ConeGeometry(2.25,.75,4),mat(0x985b4c,.88));roof.rotation.y=Math.PI/4;roof.position.set(-8.15,2.35,-4.9);scene.add(roof);
+    world.colliders.push({x:-8.15,z:-4.9,hx:1.45,hz:1.2,name:'farm-shed'});
+
+    const soilRows=[];
+    for(let i=0;i<4;i++){
+      const row=mesh(new THREE.BoxGeometry(9.2,.12,1.25),mat(0x8f6a49,.98),false,true);row.position.set(.35,.01,-2.35+i*1.58);scene.add(row);soilRows.push(row);
+      const edge=mesh(new THREE.BoxGeometry(9.35,.035,1.34),new THREE.MeshBasicMaterial({color:0xa88762,transparent:true,opacity:.22}),false,false);edge.position.set(.35,.08,-2.35+i*1.58);scene.add(edge);
+    }
+
+    // Eight large work beds. Each one records actual digging/raking/watering state.
+    const soilCells=[];
+    for(let r=0;r<4;r++)for(let c=0;c<2;c++){
+      const x=c===0?-1.95:2.65,z=-2.35+r*1.58;
+      const patch=mesh(new THREE.BoxGeometry(4.15,.055,1.04),mat(0x8a6547,.99),false,true);patch.position.set(x,.105,z);scene.add(patch);
+      const clods=[];for(let j=0;j<5;j++){const cl=mesh(new THREE.DodecahedronGeometry(.09+(j%2)*.035,0),mat(j%2?0x6a4932:0x755239,.98),false,false);cl.position.set(x-1.35+j*.68,.18,z+(j%2?.18:-.14));cl.visible=false;scene.add(cl);clods.push(cl);}
+      const compost=[];for(let j=0;j<7;j++){const fl=mesh(new THREE.SphereGeometry(.028,5,4),mat(0xd4bd84,.9),false,false);fl.position.set(x-1.5+(j%4)*.9,.17,z+(j%2?.23:-.2));fl.visible=false;scene.add(fl);compost.push(fl);}
+      const wet=mesh(new THREE.BoxGeometry(4.0,.012,.92),new THREE.MeshBasicMaterial({color:0x3f4937,transparent:true,opacity:.0}),false,false);wet.position.set(x,.145,z);scene.add(wet);
+      soilCells.push({x,z,mesh:patch,clods,compost,wet,digHits:0,composted:false,raked:false,watered:false});
+    }
+
+    const cleanupPairs=[];
+    for(let i=0;i<10;i++){
+      const st=mesh(new THREE.DodecahedronGeometry(.13+(i%3)*.035,0),mat(0x8f8b80,.9),false,false);st.position.set(-3.7+(i%5)*1.75,.14,-2.6+Math.floor(i/5)*4.7+(i%2)*.3);scene.add(st);
+      const w=new THREE.Group();for(let j=0;j<3;j++){const blade=mesh(new THREE.BoxGeometry(.035,.38,.07),mat(0x4f7f49,.9),false,false);blade.position.set((j-1)*.07,.2,0);blade.rotation.z=(j-1)*.28;w.add(blade);}w.position.set(-3.2+(i%5)*1.6,0,-1.7+Math.floor(i/5)*3.8);scene.add(w);
+      cleanupPairs.push({stone:st,weed:w,cleared:false,x:(st.position.x+w.position.x)/2,z:(st.position.z+w.position.z)/2});
+    }
+
+    const toolStations={
+      shovel:makeFarmToolStation('shovel',new THREE.Vector3(-7.0,0,-2.85),'2 SHOVELS'),
+      compost:makeFarmToolStation('compost',new THREE.Vector3(-6.65,0,3.2),'COMPOST'),
+      rake:makeFarmToolStation('rake',new THREE.Vector3(-5.35,0,-2.85),'2 RAKES'),
+      trowel:makeFarmToolStation('trowel',new THREE.Vector3(-6.0,0,-1.45),'HAND TROWELS'),
+      seeds:makeFarmToolStation('seeds',new THREE.Vector3(-5.45,0,3.0),'SUNFLOWER SEEDS'),
+      watering:makeFarmToolStation('watering',new THREE.Vector3(7.1,0,3.1),'WATERING CANS')
+    };
+
+    const holeData=[];
+    for(let r=0;r<4;r++)for(let c=0;c<5;c++){
+      const x=-3.2+c*1.75,z=-2.35+r*1.58;
+      const hole=mesh(new THREE.CylinderGeometry(.11,.15,.045,14),mat(0x4f3424,.99),false,false);hole.position.set(x,.145,z);hole.visible=false;scene.add(hole);
+      const seed=mesh(new THREE.SphereGeometry(.055,7,6),mat(0x30251c,.99),false,false);seed.scale.set(.7,1.25,.7);seed.position.set(x,.18,z);seed.visible=false;scene.add(seed);
+      const mound=mesh(new THREE.SphereGeometry(.15,10,6),mat(0x6b4c35,.98),false,false);mound.scale.set(1.6,.28,1.15);mound.position.set(x,.15,z);mound.visible=false;scene.add(mound);
+      holeData.push({x,z,hole,seed,mound,made:false,seeded:false,covered:false});
+    }
+    const plantGroups=[];for(let i=0;i<holeData.length;i+=2){const ids=[i,Math.min(i+1,holeData.length-1)];const a=holeData[ids[0]],b=holeData[ids[1]];plantGroups.push({ids,x:(a.x+b.x)/2,z:(a.z+b.z)/2});}
+
+    const pump=new THREE.Group();const pumpBody=mesh(new THREE.CylinderGeometry(.18,.22,1.35,12),mat(0x668e8a,.55,.18),false,false);pumpBody.position.y=.68;pump.add(pumpBody);const pumpTop=mesh(new THREE.BoxGeometry(.68,.12,.15),mat(0x536f70,.48,.22),false,false);pumpTop.position.set(.18,1.35,0);pump.add(pumpTop);pump.position.set(7.75,0,2.8);scene.add(pump);
+
+    const pipeGroup=new THREE.Group();for(let i=0;i<4;i++){const pipe=mesh(new THREE.CylinderGeometry(.055,.055,2.0,8),mat(0x7e9b9a,.42,.22),false,false);pipe.rotation.z=Math.PI/2;pipe.position.set(-2.6+i*1.75,.12,-3.42);pipe.visible=false;pipeGroup.add(pipe);}scene.add(pipeGroup);
+    const irrigationDrops=[];for(let i=0;i<12;i++){const d=mesh(new THREE.SphereGeometry(.035,6,5),new THREE.MeshBasicMaterial({color:0x80c7e8,transparent:true,opacity:.0}),false,false);d.position.set(-3.7+(i%6)*1.5,.32,-2.8+Math.floor(i/6)*5.2);scene.add(d);irrigationDrops.push(d);}
+
+    const scarecrow=new THREE.Group();const pole=mesh(new THREE.CylinderGeometry(.045,.055,2.25,8),mat(0x9a6a42,.9),false,false);pole.position.y=1.12;scarecrow.add(pole);const arms=mesh(new THREE.BoxGeometry(1.25,.08,.08),mat(0x9a6a42,.9),false,false);arms.position.y=1.58;scarecrow.add(arms);const shirt=mesh(new THREE.BoxGeometry(.72,.72,.18),mat(0xd58a72,.92),false,false);shirt.position.y=1.38;scarecrow.add(shirt);const head=mesh(new THREE.SphereGeometry(.25,10,8),mat(0xe2c594,.92),false,false);head.position.y=2.08;scarecrow.add(head);const hat=mesh(new THREE.CylinderGeometry(.38,.38,.06,14),mat(0xb78b4f,.9),false,false);hat.position.y=2.31;scarecrow.add(hat);scarecrow.position.set(0,0,-4.2);scarecrow.visible=false;scene.add(scarecrow);
+
+    const stakes=[];for(const h of holeData){const stake=mesh(new THREE.CylinderGeometry(.025,.03,1.55,7),mat(0x9b764a,.95),false,false);stake.position.set(h.x+.24,.78,h.z);stake.visible=false;scene.add(stake);stakes.push(stake);}
+    const plants=[];for(const h of holeData)plants.push(makeSunflowerPlant(h.x,h.z,false));
+    const special=makeSunflowerPlant(.3,4.65,true);special.scale.set(1,.04,1);plants.push(special);
+    const specialTag=makeTextSprite('PLANTED TOGETHER ♥','rgba(88,58,34,.88)','#fff1a8');specialTag.position.set(.3,3.25,4.65);specialTag.scale.set(1.1,.27,1);specialTag.visible=false;scene.add(specialTag);
+
+    const cat=makeCat();cat.group.position.set(8.25,0,-2.4);cat.group.rotation.y=-1.1;scene.add(cat.group);
+    const bell=new THREE.Group();const bellTop=mesh(new THREE.CylinderGeometry(.28,.38,.38,14),mat(0xd4a64e,.45,.25),false,false);bellTop.position.y=.55;bell.add(bellTop);const bellPost=mesh(new THREE.CylinderGeometry(.05,.06,1.4,8),mat(0x8f653e,.9),false,false);bellPost.position.y=.7;bell.add(bellPost);bell.position.set(-8.3,0,4.5);scene.add(bell);
+
+    const beacons={};FARM_TASKS.forEach((task,i)=>{beacons[i]=makeRainBeacon(task[0].toUpperCase(),FARM_STATIONS[i].clone(),i===11?0xffd34f:0xf0c879);});
+    beacons.finalLeft=makeRainBeacon('WATER LEFT',new THREE.Vector3(-3.9,.02,4.2),0x87cbe8);beacons.finalRight=makeRainBeacon('WATER RIGHT',new THREE.Vector3(4.2,.02,4.2),0x87cbe8);
+
+    world.farm={stage:0,mini:null,soilRows,soilCells,cleanupPairs,holeData,plantGroups,plants,special,specialTag,stakes,pipeGroup,irrigationDrops,scarecrow,cat,bell,beacons,toolStations,pump,finalReady:new Map(),bloomStart:0,celebration:false};
+    applyFarmVisualStage();
+  }
+
+  function setupFarmScene() {
+    const preserved=players.map(p=>p.patience);
+    clearKitchenRolePresentation();
+    scene=new THREE.Scene();scene.background=new THREE.Color(0xb7d6dc);scene.fog=new THREE.Fog(0xb7d6dc,25,48);
+    world.colliders=[];world.particles=[];world.sofa=null;world.goalRing=null;world.goalHeart=null;world.rug=null;world.door=null;world.cat=null;world.vase=null;world.arrange=null;world.dinner=null;world.rain=null;world.farm=null;
+    world.bounds={minX:-10.0,maxX:10.0,minZ:-6.7,maxZ:6.7};buildFarmWorld();
+    scene.add(new THREE.HemisphereLight(0xfff3cc,0x577052,1.65));const sun=new THREE.DirectionalLight(0xffe2a8,2.0);sun.position.set(-6,10,7);sun.castShadow=true;scene.add(sun);
+    const starts=[new THREE.Vector3(-1.1,0,5.65),new THREE.Vector3(1.1,0,5.65)];
+    players.forEach((p,i)=>{if(p.farmHeldVisual){p.group.remove(p.farmHeldVisual);p.farmHeldVisual=null;}p.farmHeldTool=null;p.farmAction=null;p.start.copy(starts[i]);p.group.position.copy(starts[i]);p.velocity.set(0,0,0);p.heldItem=null;p.rainHeldItem=null;p.canGrab=false;p.patience=clamp(preserved[i]+15,0,100);scene.add(p.group);updatePlayerFace(p);});
+    cameraShake=0;cameraFocusLevel='';camera.position.set(1.2,9.4,13.2);camera.lookAt(.2,.55,-.45);
+  }
+
+  function configureFarmHUD() {
+    $('chapter-hud').textContent='CHAPTER 4 · SUNFLOWERS FOR TWO';
+    const track=$('crisis-track');track.classList.remove('home-track');track.classList.add('farm-track');
+    track.innerHTML=FARM_TASKS.map((x,i)=>`<div class="crisis-step${i===0?' active':''}" data-step="${i}"><b>${i+1}</b><span>${x[0]}</span></div>`).join('');
+    $('kitchen-status').classList.add('hidden');$('action-prompts').classList.remove('hidden');updateFarmHUD();
+  }
+
+  function startFarmTrial() {
+    currentLevel='farm';won=false;gameStarted=true;farmTime=0;elapsed=0;
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');document.body.classList.add('farm-mode');
+    $('story-skip-level').classList.add('hidden');$('story-screen').classList.remove('active');setupFarmScene();configureFarmHUD();$('hud').classList.remove('hidden');
+    setFluffles('No invisible farming today. Pick up the tools and make the dirt visibly regret underestimating you.');
+    toast('DIRECT FARMING: WALK TO THE WORK → E TO USE TOOL. FIELD CHANGES WITH EVERY ACTION.');
+    showChapterBanner('CHAPTER FOUR','Sunflowers for Two');
+  }
+
+  function farmTaskStation(stage){return FARM_STATIONS[Math.min(stage,FARM_STATIONS.length-1)];}
+  function farmToolStation(kind){return world.farm?.toolStations?.[kind]?.pos||null;}
+  function farmToolBaseTransform(kind,visual){
+    visual.scale.setScalar(kind==='trowel'?.72:kind==='compost'?.78:kind==='seeds'?.72:kind==='watering'?.78:.72);
+    visual.position.set(kind==='compost'?0:kind==='seeds'?.28:.38,kind==='compost'?.48:kind==='seeds'?.57:.22,.43);
+    visual.rotation.set(kind==='watering'?.08:.12,0,kind==='rake'?-0.58:kind==='shovel'?-0.48:kind==='trowel'?-0.7:kind==='compost'?.02:-.28);
+    visual.userData.basePos=visual.position.clone();visual.userData.baseRot=visual.rotation.clone();
+  }
+
+  function setFarmHeldTool(player,kind,silent=false){
+    if(!player)return;if(player.farmHeldVisual){player.group.remove(player.farmHeldVisual);player.farmHeldVisual=null;}
+    player.farmHeldTool=kind||null;player.farmAction=null;
+    if(!kind)return;
+    const v=makeFarmTool(kind);farmToolBaseTransform(kind,v);player.group.add(v);player.farmHeldVisual=v;
+    if(!silent){beep(520,.05,.02);toast(`${player.name} picked up the ${FARM_TOOL_LABEL[kind].toLowerCase()}.`);}
+  }
+
+  function nearestFarmCell(player,predicate){
+    const f=world.farm;if(!f)return null;let best=null,bd=Infinity;
+    f.soilCells.forEach((c,i)=>{if(predicate&&!predicate(c,i))return;const d=Math.hypot(player.group.position.x-c.x,player.group.position.z-c.z);if(d<bd){bd=d;best={cell:c,index:i,d};}});return best;
+  }
+  function nearestFarmGroup(player,predicate){
+    const f=world.farm;if(!f)return null;let best=null,bd=Infinity;
+    f.plantGroups.forEach((g,i)=>{if(predicate&&!predicate(g,i))return;const d=Math.hypot(player.group.position.x-g.x,player.group.position.z-g.z);if(d<bd){bd=d;best={group:g,index:i,d};}});return best;
+  }
+  function groupState(g,field){const f=world.farm;return g.ids.every(id=>!!f.holeData[id][field]);}
+
+  function nearestFarmAction(player) {
+    const f=world.farm;if(!f)return null;const idx=players.indexOf(player);if(f.mini?.active)return null;if(player.farmAction&&performance.now()<player.farmAction.until)return null;
+    const stage=f.stage;
+    if(stage===0){
+      let best=null,bd=Infinity;f.cleanupPairs.forEach((p,i)=>{if(p.cleared)return;const d=Math.hypot(player.group.position.x-p.x,player.group.position.z-p.z);if(d<bd){bd=d;best={type:'clear',index:i,d};}});if(best&&best.d<1.65)return best;
+    }
+    if(stage>=1&&stage<=7){
+      const need=FARM_TOOL_FOR_STAGE[stage];
+      if(need&&player.farmHeldTool!==need){const pos=farmToolStation(need);if(pos&&distanceXZ(player.group.position,pos)<1.85)return {type:'pickup',tool:need};}
+      else if(stage===1){const n=nearestFarmCell(player,c=>c.digHits<2);if(n&&n.d<2.35)return {type:'dig',index:n.index};}
+      else if(stage===2){const n=nearestFarmCell(player,c=>!c.composted);if(n&&n.d<2.35)return {type:'compost',index:n.index};}
+      else if(stage===3){const n=nearestFarmCell(player,c=>!c.raked);if(n&&n.d<2.35)return {type:'rake',index:n.index};}
+      else if(stage===4){const n=nearestFarmGroup(player,g=>!groupState(g,'made'));if(n&&n.d<1.85)return {type:'holes',index:n.index};}
+      else if(stage===5){const n=nearestFarmGroup(player,g=>!groupState(g,'seeded'));if(n&&n.d<1.85)return {type:'seeds',index:n.index};}
+      else if(stage===6){const n=nearestFarmGroup(player,g=>groupState(g,'seeded')&&!groupState(g,'covered'));if(n&&n.d<1.85)return {type:'cover',index:n.index};}
+      else if(stage===7){const n=nearestFarmCell(player,c=>!c.watered);if(n&&n.d<2.35)return {type:'waterbed',index:n.index};}
+    }
+    if(stage>=8&&stage<=10){const pos=farmTaskStation(stage);if(distanceXZ(player.group.position,pos)<2.15)return {type:'farmmini',stage};}
+    if(stage===11){
+      if(player.farmHeldTool!=='watering'){const pos=farmToolStation('watering');if(pos&&distanceXZ(player.group.position,pos)<1.85)return {type:'pickup',tool:'watering'};return null;}
+      const left=new THREE.Vector3(-3.9,0,4.2),right=new THREE.Vector3(4.2,0,4.2);
+      if(distanceXZ(player.group.position,left)<1.75)return {type:'finalwater',slot:'left'};
+      if(distanceXZ(player.group.position,right)<1.75)return {type:'finalwater',slot:'right'};
+    }
+    if(distanceXZ(player.group.position,f.cat.group.position)<1.35)return {type:'petfarmcat'};
+    if(distanceXZ(player.group.position,f.bell.position)<1.4)return {type:'farmbell'};
+    return null;
+  }
+
+  function farmActionText(action,player) {
+    const f=world.farm;if(!f)return 'Walk onto the field.';
+    if(!action){const need=FARM_TOOL_FOR_STAGE[f.stage];if(need&&player?.farmHeldTool!==need)return `Go to the glowing ${FARM_TOOL_LABEL[need].toLowerCase()} station and pick one up`;if(f.stage===11&&player?.farmHeldTool!=='watering')return 'Pick up a watering can, then take one glowing side with your partner';return f.stage<=7?'Move close to the next unfinished patch — the soil itself shows what still needs work.':'Walk toward the glowing farm marker.';}
+    return ({clear:'Pull weed + lift stone',pickup:`Pick up ${FARM_TOOL_LABEL[action.tool]}`,dig:'Drive shovel into this bed',compost:'Spread compost over this bed',rake:'Rake this bed smooth',holes:'Make two planting holes',seeds:'Place sunflower seeds in these holes',cover:'Cover seeds + pat soil',waterbed:'Tilt watering can over this bed',farmmini:FARM_TASKS[action.stage]?.[1],petfarmcat:'Pet Kevin, temporary agricultural supervisor',farmbell:'Ring the tiny farm bell for no useful reason'})[action.type]||(action.type==='finalwater'?`Water the ${action.slot} side together`:'Interact');
+  }
+
+  function faceFarmTarget(player,x,z){const dx=x-player.group.position.x,dz=z-player.group.position.z;if(Math.hypot(dx,dz)>.01){player.facing.set(dx,0,dz).normalize();player.group.rotation.y=Math.atan2(dx,dz);}}
+  function triggerFarmAction(player,kind,x,z,duration=620){faceFarmTarget(player,x,z);player.velocity.set(0,0,0);player.farmAction={kind,start:performance.now(),until:performance.now()+duration,duration,target:[x,z]};}
+
+  function spawnSoilBurst(x,z,count=7,color=0x765139){
+    for(let i=0;i<count;i++){const p=mesh(new THREE.DodecahedronGeometry(.035+Math.random()*.035,0),mat(color,.94),false,false);p.position.set(x+(Math.random()-.5)*.35,.17+Math.random()*.08,z+(Math.random()-.5)*.35);p.userData.vel=new THREE.Vector3((Math.random()-.5)*1.2,.5+Math.random()*.8,(Math.random()-.5)*1.2);p.userData.life=.42+Math.random()*.28;scene.add(p);world.particles.push(p);}
+  }
+  function spawnWaterBurst(x,z){
+    for(let i=0;i<9;i++){const p=mesh(new THREE.SphereGeometry(.025+Math.random()*.012,5,4),new THREE.MeshBasicMaterial({color:0x86cbea,transparent:true,opacity:.82}),false,false);p.position.set(x+(Math.random()-.5)*.35,.55+Math.random()*.35,z+(Math.random()-.5)*.35);p.userData.vel=new THREE.Vector3((Math.random()-.5)*.35,-.35-Math.random()*.45,(Math.random()-.5)*.35);p.userData.life=.38+Math.random()*.2;scene.add(p);world.particles.push(p);}
+  }
+
+  function farmInteract(player) {
+    const f=world.farm,action=nearestFarmAction(player);if(!f||!action)return;
+    if(action.type==='pickup'){setFarmHeldTool(player,action.tool);setFluffles(`Tool acquired: ${FARM_TOOL_LABEL[action.tool]}. Now make the field earn its montage.`);updateFarmHUD();return;}
+    if(action.type==='clear'){
+      const p=f.cleanupPairs[action.index];if(!p||p.cleared)return;p.cleared=true;p.stone.visible=false;p.weed.visible=false;triggerFarmAction(player,'pull',p.x,p.z,460);spawnSoilBurst(p.x,p.z,4,0x7a654e);beep(430,.035,.016);
+      if(f.cleanupPairs.every(x=>x.cleared))finishFarmDirectStage(0);else updateFarmHUD();return;
+    }
+    if(action.type==='dig'){
+      const c=f.soilCells[action.index];c.digHits=Math.min(2,c.digHits+1);triggerFarmAction(player,'dig',c.x,c.z,720);spawnSoilBurst(c.x+(Math.random()-.5)*1.6,c.z,9);beep(c.digHits===2?280:235,.055,.024);applyFarmProgressVisuals();if(f.soilCells.every(x=>x.digHits>=2))finishFarmDirectStage(1);else updateFarmHUD();return;
+    }
+    if(action.type==='compost'){
+      const c=f.soilCells[action.index];c.composted=true;triggerFarmAction(player,'pour',c.x,c.z,620);spawnSoilBurst(c.x,c.z,6,0xc9ae79);beep(510,.045,.018);applyFarmProgressVisuals();if(f.soilCells.every(x=>x.composted))finishFarmDirectStage(2);else updateFarmHUD();return;
+    }
+    if(action.type==='rake'){
+      const c=f.soilCells[action.index];c.raked=true;triggerFarmAction(player,'rake',c.x,c.z,680);spawnSoilBurst(c.x,c.z,5);beep(345,.045,.018);applyFarmProgressVisuals();if(f.soilCells.every(x=>x.raked))finishFarmDirectStage(3);else updateFarmHUD();return;
+    }
+    if(action.type==='holes'){
+      const g=f.plantGroups[action.index];g.ids.forEach(id=>f.holeData[id].made=true);triggerFarmAction(player,'trowel',g.x,g.z,610);spawnSoilBurst(g.x,g.z,6);beep(390,.04,.017);applyFarmProgressVisuals();if(f.plantGroups.every(g=>groupState(g,'made')))finishFarmDirectStage(4);else updateFarmHUD();return;
+    }
+    if(action.type==='seeds'){
+      const g=f.plantGroups[action.index];g.ids.forEach(id=>f.holeData[id].seeded=true);triggerFarmAction(player,'plant',g.x,g.z,560);beep(620,.035,.015);applyFarmProgressVisuals();if(f.plantGroups.every(g=>groupState(g,'seeded')))finishFarmDirectStage(5);else updateFarmHUD();return;
+    }
+    if(action.type==='cover'){
+      const g=f.plantGroups[action.index];g.ids.forEach(id=>f.holeData[id].covered=true);triggerFarmAction(player,'pat',g.x,g.z,610);spawnSoilBurst(g.x,g.z,4);beep(460,.035,.014);applyFarmProgressVisuals();if(f.plantGroups.every(g=>groupState(g,'covered')))finishFarmDirectStage(6);else updateFarmHUD();return;
+    }
+    if(action.type==='waterbed'){
+      const c=f.soilCells[action.index];c.watered=true;triggerFarmAction(player,'water',c.x,c.z,800);spawnWaterBurst(c.x,c.z);beep(720,.045,.014);applyFarmProgressVisuals();if(f.soilCells.every(x=>x.watered))finishFarmDirectStage(7);else updateFarmHUD();return;
+    }
+    if(action.type==='farmmini'){startFarmMini(action.stage,player);return;}
+    if(action.type==='petfarmcat'){spawnBonkParticles(f.cat.group.position.clone().setY(.65),6);beep(760,.05,.018);toast('KEVIN ACCEPTS THE FARM. MANAGEMENT REMAINS UNCLEAR.');setFluffles('Kevin has inspected the soil by sitting on it. Peer review complete.');return;}
+    if(action.type==='farmbell'){beep(880,.08,.028);setTimeout(()=>beep(1120,.08,.02),85);toast('DING. NO CROPS WERE ACCELERATED.');setFluffles('The bell has been rung. Agricultural science remains unchanged.');return;}
+    if(action.type==='finalwater'){
+      const idx=players.indexOf(player),now=performance.now();const occupied=f.finalReady.get(action.slot);if(occupied&&occupied.idx!==idx){toast(`${action.slot.toUpperCase()} side is taken. Try the other watering spot ♥`);return;}
+      for(const [slot,data] of [...f.finalReady.entries()])if(data.idx===idx&&slot!==action.slot)f.finalReady.delete(slot);
+      f.finalReady.set(action.slot,{idx,at:now});triggerFarmAction(player,'water',action.slot==='left'?-3.9:4.2,4.2,900);spawnWaterBurst(action.slot==='left'?-3.9:4.2,4.2);beep(580+idx*110,.06,.022);toast(`${player.name} is watering the ${action.slot} side. Partner: take the other side when ready ♥`);updateFarmHUD();
+      if(f.finalReady.has('left')&&f.finalReady.has('right')&&f.finalReady.get('left').idx!==f.finalReady.get('right').idx)setTimeout(finishFarmTrial,520);
+    }
+  }
+
+  function farmDirectProgress(stage){const f=world.farm;if(!f)return [0,1];if(stage===0)return [f.cleanupPairs.filter(x=>x.cleared).length,f.cleanupPairs.length];if(stage===1)return [f.soilCells.reduce((n,x)=>n+x.digHits,0),f.soilCells.length*2];if(stage===2)return [f.soilCells.filter(x=>x.composted).length,f.soilCells.length];if(stage===3)return [f.soilCells.filter(x=>x.raked).length,f.soilCells.length];if(stage===4)return [f.plantGroups.filter(g=>groupState(g,'made')).length,f.plantGroups.length];if(stage===5)return [f.plantGroups.filter(g=>groupState(g,'seeded')).length,f.plantGroups.length];if(stage===6)return [f.plantGroups.filter(g=>groupState(g,'covered')).length,f.plantGroups.length];if(stage===7)return [f.soilCells.filter(x=>x.watered).length,f.soilCells.length];return [0,1];}
+
+  function finishFarmDirectStage(completed){
+    const f=world.farm;if(!f||f.stage!==completed)return;f.stage=Math.min(11,completed+1);navigator.vibrate?.(24);beep(790,.07,.026);applyFarmVisualStage();flashTaskSuccess(`${FARM_TASKS[completed][0]} complete ✦`);
+    if(completed===5)players.forEach(p=>setFarmHeldTool(p,null,true));
+    if(completed===7)players.forEach(p=>setFarmHeldTool(p,null,true));
+    const messages=['PATCH CLEARED — NOW GET THE SHOVELS.','SOIL DUG LOOSE — YOU CAN SEE THE CLUMPS.','COMPOST SPREAD THROUGH EVERY BED.','ROWS RAKED SMOOTH.','PLANTING HOLES READY.','SUNFLOWER SEEDS ARE ACTUALLY IN THE GROUND.','SEEDS COVERED + PATTED.','FIRST WATERING COMPLETE — TINY SPROUTS!'];toast(messages[completed]||'FIELD WORK COMPLETE.');setFluffles(farmFlufflesLine(f.stage));updateFarmHUD();
+  }
+
+  function startFarmMini(stageIndex,player) {
+    const f=world.farm;if(!f||f.mini?.active||stageIndex!==f.stage||stageIndex<8||stageIndex>10)return;
+    const taps={8:4,9:4,10:5};f.mini={active:true,type:`farm-${stageIndex}`,stage:stageIndex,playerIndex:players.indexOf(player),progress:0,holding:false,hits:0,targetHits:taps[stageIndex]||4,marker:.18,dir:1,feedback:FARM_TASKS[stageIndex][1]};player.velocity.set(0,0,0);setFluffles(farmFlufflesLine(stageIndex));updateFarmMiniUI();
+  }
+
+  function farmFlufflesLine(s){return [
+    'Pull the weeds and lift the stones. Yes, with your actual tiny hands.',
+    'Take a shovel. Two solid digs per bed. Compact dirt has been promoted to gameplay.',
+    'Spread compost across every loosened bed. Romance is temporary. Soil structure is forever.',
+    'Rake the clumps smooth. The rows should look prepared because you prepared them.',
+    'Use the hand trowel and make the planting holes directly in the field.',
+    'Put the sunflower seeds into the holes. They remain visible until you cover them.',
+    'Cover and pat the soil. You have now buried several future responsibilities.',
+    'Water every bed. Watch the dry earth visibly turn dark.',
+    'Connect the little irrigation line. Plumbing has entered the relationship again.',
+    'Build the scarecrow. Kevin has declined the position on scheduling grounds.',
+    'Support the growing stems. Even tall things occasionally require help.',
+    'Both sides at once. This is the suspicious teamwork moment.'
+  ][s]||'Agriculture continues.';}
+
+  function handleFarmMiniInput(playerIndex,down) {
+    const f=world.farm,mini=f?.mini;if(!mini?.active||mini.playerIndex!==playerIndex||!down)return;mini.hits++;mini.progress=clamp((mini.hits/mini.targetHits)*100,0,100);mini.feedback=`${Math.min(mini.hits,mini.targetHits)}/${mini.targetHits} ${['','','','','','','','','pipe joins','scarecrow pieces','stems tied'][mini.stage]||'done'}`;navigator.vibrate?.(16);beep(500+mini.hits*45,.035,.018);if(mini.progress>=100)finishFarmMini();updateFarmMiniUI();
+  }
+  function updateFarmMini(dt){const f=world.farm,mini=f?.mini;if(!mini?.active){updateFarmMiniUI();return;}mini.marker+=mini.dir*dt*.75;if(mini.marker>=1){mini.marker=1;mini.dir=-1;}if(mini.marker<=0){mini.marker=0;mini.dir=1;}updateFarmMiniUI();}
+  function finishFarmMini(){const f=world.farm,mini=f?.mini;if(!mini?.active)return;const completed=mini.stage;f.mini=null;f.stage=Math.min(11,completed+1);navigator.vibrate?.(28);beep(780,.07,.026);applyFarmVisualStage();flashTaskSuccess(`${FARM_TASKS[completed][0]} complete ✦`);const messages={8:'IRRIGATION CONNECTED.',9:'SCARECROW ON DUTY. KEVIN UNIMPRESSED.',10:'STEMS SUPPORTED. FINAL WATERING TOGETHER!'};toast(messages[completed]||'FARM TASK COMPLETE.');updateFarmHUD();}
+
+  function applyFarmProgressVisuals(){
+    const f=world.farm;if(!f)return;
+    f.cleanupPairs.forEach(p=>{p.stone.visible=!p.cleared;p.weed.visible=!p.cleared;});
+    f.soilCells.forEach(c=>{
+      const dug=c.digHits>=2,started=c.digHits>0;c.mesh.material.color.setHex(c.watered?0x4e4133:c.raked?0x6b4d36:c.composted?0x72543b:dug?0x76533a:started?0x806047:0x8a6547);c.mesh.position.y=started?.13:.105;c.mesh.scale.y=dug?1.22:1;
+      c.clods.forEach((o,j)=>{o.visible=dug&&!c.raked;o.rotation.z=.1*(j-2);});c.compost.forEach(o=>o.visible=c.composted&&!c.watered);c.wet.material.opacity=c.watered?.34:0;
+    });
+    f.holeData.forEach(h=>{h.hole.visible=h.made&&!h.covered;h.seed.visible=h.seeded&&!h.covered;h.mound.visible=h.covered&&f.stage<8;});
+  }
+
+  function applyFarmVisualStage() {
+    const f=world.farm;if(!f)return;const done=f.stage;applyFarmProgressVisuals();
+    f.pipeGroup.children.forEach(o=>o.visible=done>=9);f.scarecrow.visible=done>=10;f.stakes.forEach(o=>o.visible=done>=11);f.irrigationDrops.forEach(o=>o.material.opacity=done>=9?.58:0);
+    f.plants.forEach((p,i)=>{const special=p.userData.special;if(done<8){p.scale.set(1,.04,1);p.userData.head.visible=false;p.userData.bud.visible=false;p.userData.leaf1.visible=false;p.userData.leaf2.visible=false;return;}let y=done===8?.12:done===9?.28:done===10?.48:done===11?.72:1;if(special)y*=1.08;p.scale.set(1,y,1);p.userData.leaf1.visible=done>=8;p.userData.leaf2.visible=done>=9;p.userData.bud.visible=done>=10&&done<12;p.userData.head.visible=done>=12;});f.specialTag.visible=done>=12;
+  }
+
+  function farmGuidancePosition(){
+    const f=world.farm;if(!f)return new THREE.Vector3();const s=f.stage;
+    if(s===0){const p=f.cleanupPairs.find(x=>!x.cleared);if(p)return new THREE.Vector3(p.x,0,p.z);}
+    const need=FARM_TOOL_FOR_STAGE[s];if(need&&!players.some(p=>p.farmHeldTool===need))return farmToolStation(need)?.clone()||farmTaskStation(s).clone();
+    if(s===1){const c=f.soilCells.find(x=>x.digHits<2);if(c)return new THREE.Vector3(c.x,0,c.z);}if(s===2){const c=f.soilCells.find(x=>!x.composted);if(c)return new THREE.Vector3(c.x,0,c.z);}if(s===3){const c=f.soilCells.find(x=>!x.raked);if(c)return new THREE.Vector3(c.x,0,c.z);}if(s===4){const g=f.plantGroups.find(x=>!groupState(x,'made'));if(g)return new THREE.Vector3(g.x,0,g.z);}if(s===5){const g=f.plantGroups.find(x=>!groupState(x,'seeded'));if(g)return new THREE.Vector3(g.x,0,g.z);}if(s===6){const g=f.plantGroups.find(x=>!groupState(x,'covered'));if(g)return new THREE.Vector3(g.x,0,g.z);}if(s===7){const c=f.soilCells.find(x=>!x.watered);if(c)return new THREE.Vector3(c.x,0,c.z);}return farmTaskStation(s).clone();
+  }
+
+  function updateFarmHUD() {
+    const f=world.farm;if(!f)return;const s=Math.min(f.stage,11);document.querySelectorAll('.crisis-step').forEach((el,i)=>{el.classList.toggle('active',i===s&&f.stage<12);el.classList.toggle('done',i<f.stage||f.stage>=12);});$('crisis-count').textContent=f.stage>=12?'12/12':`${s+1}/12`;
+    const direct=s<=7?farmDirectProgress(s):null;const prog=direct?` (${direct[0]}/${direct[1]})`:'';
+    const objectives=[`Clear the patch directly: pull each weed + stone pair${prog}.`,`Pick up a SHOVEL, then dig each bed twice. Every shovel stroke breaks the compact soil${prog}.`,`Carry compost and spread it over every loosened bed${prog}.`,`Pick up a RAKE and smooth each clumpy bed into a planting row${prog}.`,`Use the HAND TROWEL to make visible planting holes${prog}.`,`Pick up the SEED POUCH and place sunflower seeds into the open holes${prog}.`,`Cover the visible seeds and pat the soil closed${prog}.`,`Pick up a WATERING CAN and water every bed until the earth turns dark${prog}.`,'Connect the small irrigation pipes so the whole patch can drink.','Build the tiny scarecrow and protect the new sprouts.','Tie the taller stems to support stakes before the final growth push.',`Final watering: one player on EACH glowing side. Ready ${f.finalReady.size}/2 — take your time.`,'The field is blooming. You made this together. 🌻'];$('objective').textContent=objectives[Math.min(f.stage,12)];
+    const guide=farmGuidancePosition();for(const [k,b] of Object.entries(f.beacons||{})){if(k==='finalLeft'||k==='finalRight'){b.visible=f.stage===11;}else{b.visible=Number(k)===s&&f.stage<11;if(b.visible&&s<=7)b.position.copy(guide);}if(b.visible&&b.userData.ring)b.userData.ring.scale.setScalar(.92+Math.sin(elapsed*4+String(k).length)*.08);}
+    players.forEach((p,i)=>{const action=nearestFarmAction(p),card=$(`p${i+1}-action-card`),text=$(`p${i+1}-action-text`),name=$(`p${i+1}-action-name`);if(!card)return;card.classList.remove('hidden');name.textContent=`${p.name.toUpperCase()} · ${p.farmHeldTool?FARM_TOOL_LABEL[p.farmHeldTool]:'FARM DUTY'}`;text.textContent=farmActionText(action,p);card.classList.toggle('ready-action',!!action);});updateFarmMiniUI();
+  }
+
+  function updateFarmMiniUI() {
+    const panel=$('kitchen-task-screen');if(!panel)return;const f=world.farm,mini=f?.mini;if(!mini?.active){if(currentLevel==='farm'){if(performance.now()<taskFlashUntil){panel.classList.remove('hidden');return;}panel.classList.add('hidden');panel.classList.remove('active-player','spectator');}return;}
+    panel.classList.remove('hidden');const localIndex=window.NET?.online&&window.NET?.started?window.NET.playerIndex:mini.playerIndex;const activeHere=localIndex===mini.playerIndex;panel.classList.toggle('active-player',activeHere);panel.classList.toggle('spectator',!activeHere);const actor=players[mini.playerIndex]?.name||'Partner';const titles={8:'Connect irrigation',9:'Build the scarecrow',10:'Support the stems'},subtitles={8:'Tap to connect the little pipe sections in order.',9:'Tap to assemble the world’s least intimidating scarecrow.',10:'Tap to tie the tallest stems gently to their support stakes.'},emojis={8:'💧🔧',9:'🧑‍🌾🐦',10:'🌻🪵'};$('task-kicker').textContent=activeHere?`${actor.toUpperCase()} · SPECIAL FARM TASK`:`${actor.toUpperCase()} IS HANDLING THIS`;$('task-title').textContent=titles[mini.stage]||'Farm task';$('task-subtitle').textContent=subtitles[mini.stage]||'';$('task-emoji').textContent=emojis[mini.stage]||'🌻';const visual=$('task-visual');if(visual)visual.dataset.taskType=`farm-${mini.stage}`;const feedback=$('task-feedback');if(feedback){feedback.textContent=mini.feedback||'Take your time';feedback.classList.toggle('good',mini.progress>70);feedback.classList.toggle('miss',false);}$('task-progress-fill').style.width=`${clamp(mini.progress,0,100)}%`;$('task-progress-text').textContent=`${Math.round(mini.progress)}%`;$('task-marker').style.left=`${clamp(mini.marker,0,1)*100}%`;$('task-safe-zone').style.left='0%';$('task-safe-zone').style.width='100%';const key=kitchenMiniKeyLabel(mini.playerIndex);$('task-control').textContent=activeHere?`TAP ${key}`:'PARTNER TASK';$('task-observer-note').textContent=activeHere?'Special assembly task. Normal soil work happens directly in the 3D field.':'Your partner is doing the assembly close-up; you can keep exploring.';
+  }
+
+  function applyFarmPlayerPose(player){
+    const visual=player.farmHeldVisual,body=player.group.userData.body,arms=player.group.userData.arms||[];if(visual?.userData?.basePos){visual.position.copy(visual.userData.basePos);visual.rotation.copy(visual.userData.baseRot);}
+    const a=player.farmAction,now=performance.now();if(!a||now>=a.until){if(a&&now>=a.until)player.farmAction=null;return;}const u=clamp((now-a.start)/Math.max(1,a.duration),0,1),swing=Math.sin(u*Math.PI),pulse=Math.sin(u*Math.PI*2);
+    if(['dig','rake','trowel'].includes(a.kind)){if(body){body.rotation.x=-.22*swing;body.position.y=.03-.06*swing;}arms.forEach((arm,i)=>{arm.rotation.x=-.9-1.05*swing;arm.rotation.z=(i===0?-1:1)*(.12+.12*swing);});if(visual){visual.rotation.x=(visual.userData.baseRot?.x||0)-.72*swing;visual.rotation.z=(visual.userData.baseRot?.z||0)+.22*swing;visual.position.y=(visual.userData.basePos?.y||.2)-.13*swing;}}
+    else if(['plant','pat','pull'].includes(a.kind)){if(body){body.rotation.x=-.28*swing;body.position.y=.03-.18*swing;}arms.forEach((arm,i)=>{arm.rotation.x=-.55-.8*swing;arm.rotation.z=(i===0?-1:1)*.08;});}
+    else if(a.kind==='pour'){if(body)body.rotation.x=-.09*swing;if(visual)visual.rotation.z=(visual.userData.baseRot?.z||0)-.65*swing;}
+    else if(a.kind==='water'){if(body)body.rotation.x=-.08*swing;if(visual){visual.rotation.z=(visual.userData.baseRot?.z||0)-.82*swing;visual.position.z=(visual.userData.basePos?.z||.43)+.11*swing;}}
+  }
+
+  function animateFarmBloom(){const f=world.farm;if(!f?.celebration||!f.bloomStart)return;const t=clamp((performance.now()-f.bloomStart)/2200,0,1);f.plants.forEach((p,i)=>{const local=clamp(t*1.35-i*.014,0,1);p.scale.y=.72+local*(p.userData.special?.38:.28);p.userData.head.visible=local>.38;p.userData.bud.visible=local<=.52;});if(t>.78)f.specialTag.visible=true;}
+  function updateFarm(dt){const f=world.farm;if(!f)return;updateFarmMini(dt);f.plants.forEach((p,i)=>{if(f.stage>=8)p.rotation.z=Math.sin(elapsed*1.35+i*.7)*.018;});f.irrigationDrops.forEach((d,i)=>{if(f.stage>=9)d.position.y=.18+.10*(.5+.5*Math.sin(elapsed*4+i));});animateFarmBloom();updateFarmHUD();}
+
+  function finishFarmTrial(){const f=world.farm;if(!f||won||currentLevel!=='farm')return;won=true;gameStarted=false;farmTime=Math.max(.1,elapsed);f.stage=12;f.celebration=true;f.bloomStart=performance.now();players.forEach(p=>setFarmHeldTool(p,null,true));applyFarmVisualStage();f.specialTag.visible=false;f.plants.forEach(p=>{p.scale.y=.72;p.userData.head.visible=false;p.userData.bud.visible=true;});players[0].group.position.set(-.75,0,5.0);players[1].group.position.set(.75,0,5.0);players[0].group.rotation.y=players[1].group.rotation.y=Math.PI;for(let i=0;i<34;i++)spawnBonkParticles(new THREE.Vector3((Math.random()-.5)*7,1.0+Math.random()*1.5,(Math.random()-.5)*4),1);beep(660,.10,.045);setTimeout(()=>beep(880,.12,.04),120);setTimeout(()=>beep(1100,.16,.035),260);toast('THE SUNFLOWER FIELD IS BLOOMING 🌻♥');setFluffles('Against all statistical expectations, something survived your teamwork. Worse: it appears to be thriving.');updateFarmHUD();scheduleNetworkFlow('startPartnerQuiz',3200);}
 
   function showChapterBanner(kicker,name) {
     const wrap=$('chapter-banner');if(!wrap)return;$('chapter-kicker').textContent=kicker;$('chapter-name').textContent=name;wrap.classList.remove('hidden');requestAnimationFrame(()=>wrap.classList.add('show'));setTimeout(()=>{wrap.classList.remove('show');setTimeout(()=>wrap.classList.add('hidden'),350);},2200);
@@ -3740,6 +4173,9 @@
         else if (r.stage === 6) taskFocus = r.blanketPlaced ? r.sofaPos : r.blanket.position;
         if (taskFocus) rawFocus.lerp(taskFocus, .24);
       }
+    } else if (currentLevel === 'farm') {
+      const f=world.farm;rawFocus=players[0].group.position.clone().add(players[1].group.position).multiplyScalar(.5);
+      if(f&&f.stage<12){taskFocus=f.stage===11?new THREE.Vector3(.15,0,4.15):farmTaskStation(f.stage);rawFocus.lerp(taskFocus,.18);}
     } else {
       rawFocus = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(.5);
     }
@@ -3761,12 +4197,13 @@
     let back = 11.2 + extra;
     if (currentLevel === 'dinner') { height = 8.4 + extra*.45; back = 10.4 + extra; }
     if (currentLevel === 'rain') { height = 7.7 + extra*.30; back = 10.0 + extra*.55; }
+    if (currentLevel === 'farm') { height = 9.0 + extra*.32; back = 11.2 + extra*.58; }
 
     const desired = new THREE.Vector3(focus.x + 1.55, height, focus.z + back);
     camera.position.lerp(desired, 1 - Math.exp(-2.7 * dt));
 
     // Movie Night is intentionally calm: never carry a random shake impulse into it.
-    if (currentLevel === 'rain') {
+    if (currentLevel === 'rain' || currentLevel === 'farm') {
       cameraShake = 0;
     } else if (cameraShake > 0.001) {
       camera.position.x += (Math.random() - 0.5) * cameraShake;
@@ -3774,7 +4211,7 @@
       camera.position.z += (Math.random() - 0.5) * cameraShake;
       cameraShake = damp(cameraShake, 0, 8, dt);
     }
-    camera.lookAt(focus.x, currentLevel === 'rain' ? .78 : .58, focus.z - (currentLevel === 'rain' ? 1.65 : 1.25));
+    camera.lookAt(focus.x, currentLevel === 'rain' ? .78 : currentLevel === 'farm' ? .62 : .58, focus.z - (currentLevel === 'rain' ? 1.65 : currentLevel === 'farm' ? .95 : 1.25));
   }
 
   function updateHUD() {
@@ -3837,7 +4274,7 @@
     quiz.self = [null, null];
     quiz.guess = [null, null];
     gameStarted = false;
-    document.body.classList.remove('kitchen-mode','rain-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
     $('story-screen').classList.remove('active');
     $('story-skip-level').classList.add('hidden');
     $('hud').classList.add('hidden');
@@ -3978,7 +4415,10 @@
     }
     if (currentLevel === 'rain' && gameStarted && !won) {
       skippedLevels.add('rain');gameStarted=false;won=true;rainTime=0;$('hud').classList.add('hidden');document.body.classList.remove('rain-mode');
-      toast('MOVIE NIGHT SKIPPED. THE REMOTE HAS BEEN FORMALLY EXCUSED.');beep(470,.06,.035);setTimeout(startPartnerQuiz,450);
+      toast('MOVIE NIGHT SKIPPED. THE REMOTE HAS BEEN FORMALLY EXCUSED. SUNFLOWERS ARE NEXT.');beep(470,.06,.035);setTimeout(showFarmIntro,450);
+    }
+    if (currentLevel === 'farm' && gameStarted && !won) {
+      skippedLevels.add('farm');gameStarted=false;won=true;farmTime=0;$('hud').classList.add('hidden');document.body.classList.remove('farm-mode');toast('SUNFLOWER FARM SKIPPED. PROFESSIONAL GARDENERS HAVE BEEN NOTIFIED.');beep(470,.06,.035);setTimeout(startPartnerQuiz,450);
     }
   }
 
@@ -3990,7 +4430,10 @@
       skippedLevels.add('dinner'); dinnerTime=0; showRainIntro(); return;
     }
     if (storyMode === 'rain') {
-      skippedLevels.add('rain'); rainTime=0; startPartnerQuiz(); return;
+      skippedLevels.add('rain'); rainTime=0; showFarmIntro(); return;
+    }
+    if (storyMode === 'farm') {
+      skippedLevels.add('farm'); farmTime=0; startPartnerQuiz(); return;
     }
     if (storyMode === 'intro') {
       skippedLevels.add('sofa'); sofaTime=0; showDinnerIntro();
@@ -4009,10 +4452,10 @@
   function finishEpisode() {
     quizActive = false;
     gameStarted = false;
-    document.body.classList.remove('kitchen-mode','rain-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
     $('quiz-screen').classList.remove('active');
     $('hud').classList.add('hidden');
-    $('time-score').textContent = formatTime(sofaTime + dinnerTime + rainTime);
+    $('time-score').textContent = formatTime(sofaTime + dinnerTime + rainTime + farmTime);
     const avg = Math.round(players.reduce((a, p) => a + p.patience, 0) / players.length);
     $('patience-score').textContent = `${avg}%`;
     $('chaos-score').textContent = Math.round(chaos);
@@ -4023,7 +4466,8 @@
       ? ' Dinner was skipped in favor of the ancient technology known as takeout.'
       : dinnerTime > 0 ? ` You survived dinner in ${formatTime(dinnerTime)}.` : '';
     const sofaNote = skippedLevels.has('sofa') ? ' Arrange Our Home was skipped.' : '';
-    const rainNote = skippedLevels.has('rain') ? ' Movie Night Mayhem was skipped.' : rainTime > 0 ? ` You built a proper movie night around ${world.rain?.movieChosen || 'a suspiciously acceptable film'}.` : '';
+    const rainNote = skippedLevels.has('rain') ? ' Movie Night Mayhem was skipped.' : rainTime > 0 ? ` You built a proper movie night around ${movieChoiceFinal || 'a suspiciously acceptable film'}.` : '';
+    const farmNote = skippedLevels.has('farm') ? ' Sunflowers for Two was skipped.' : farmTime > 0 ? ` You prepared the soil, planted the seeds, and grew a sunflower field together in ${formatTime(farmTime)}.` : '';
     const quizNote = skippedLevels.has('quiz') ? ' The understanding questions were skipped, so no emotional statistics were harmed.' : '';
 
     const understandingText = skippedLevels.has('quiz')
@@ -4035,11 +4479,11 @@
           : understandingScore >= Math.ceil(max * 0.35)
             ? `Love detected. Documentation incomplete.`
             : `The apartment is yours. A follow-up interview has been aggressively recommended.`;
-    $('win-summary').textContent = understandingText + sofaNote + dinnerNote + rainNote + quizNote;
+    $('win-summary').textContent = understandingText + sofaNote + dinnerNote + rainNote + farmNote + quizNote;
 
     let grade;
     if (skippedLevels.size) {
-      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Arrange Home' : x === 'dinner' ? 'Dinner' : x === 'rain' ? 'Movie Night' : 'Questions');
+      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Arrange Home' : x === 'dinner' ? 'Dinner' : x === 'rain' ? 'Movie Night' : x === 'farm' ? 'Sunflower Farm' : 'Questions');
       grade = `custom route · skipped ${labels.join(' + ')}`;
     } else {
       const composite = understandingScore * 8 + avg - Math.min(chaos, 25);
@@ -4090,10 +4534,12 @@
     sofaTime = 0;
     dinnerTime = 0;
     rainTime = 0;
+    farmTime = 0;
+    movieChoiceFinal = null;
     understandingScore = 0;
     chaos = 0;
     sofaChaos = 0;
-    document.body.classList.remove('kitchen-mode','rain-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
     $('p1-label').textContent = n1.toUpperCase();
     $('p2-label').textContent = n2.toUpperCase();
     $('p1-label').classList.remove('role-chef','role-runner');
@@ -4111,8 +4557,10 @@
       skippedLevels.add('sofa'); sofaTime=0; showDinnerIntro();
     } else if (startRoute === 'rain') {
       skippedLevels.add('sofa'); skippedLevels.add('dinner'); sofaTime=0; dinnerTime=0; showRainIntro();
+    } else if (startRoute === 'farm') {
+      skippedLevels.add('sofa'); skippedLevels.add('dinner'); skippedLevels.add('rain'); sofaTime=0; dinnerTime=0; rainTime=0; showFarmIntro();
     } else if (startRoute === 'quiz') {
-      skippedLevels.add('sofa'); skippedLevels.add('dinner'); skippedLevels.add('rain'); startPartnerQuiz();
+      skippedLevels.add('sofa'); skippedLevels.add('dinner'); skippedLevels.add('rain'); skippedLevels.add('farm'); startPartnerQuiz();
     } else {
       showStoryIntro();
     }
@@ -4148,6 +4596,9 @@
     if (storyMode === 'rain') {
       $('story-screen').classList.remove('active'); $('story-skip-level').classList.add('hidden'); startRainTrial(); return;
     }
+    if (storyMode === 'farm') {
+      $('story-screen').classList.remove('active'); $('story-skip-level').classList.add('hidden'); startFarmTrial(); return;
+    }
     if (storyIndex < C.story.length - 1) {
       storyIndex += 1;
       renderStoryCard();
@@ -4161,7 +4612,7 @@
 
   function startPhysicalTrial() {
     currentLevel = 'sofa';
-    document.body.classList.remove('kitchen-mode','rain-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode','farm-mode');
     $('chapter-hud').textContent='CHAPTER 1 · OUR NEW HOME';
     players.forEach((p,i) => {
       const badge = p.group.userData.roleBadge;
@@ -4183,7 +4634,11 @@
     if (currentLevel === 'dinner') { resetDinnerLevel(showToast); return; }
     if (currentLevel === 'rain') {
       won=false;gameStarted=true;elapsed=0;setupRainScene();configureRainHUD();$('hud').classList.remove('hidden');
-      if(showToast)toast('RAINY EVENING RESET. THE TEA HAS BEEN UNMADE.');return;
+      if(showToast)toast('MOVIE NIGHT RESET. THE REMOTE HAS BECOME MISSING AGAIN.');return;
+    }
+    if (currentLevel === 'farm') {
+      won=false;gameStarted=true;elapsed=0;setupFarmScene();configureFarmHUD();$('hud').classList.remove('hidden');
+      if(showToast)toast('SUNFLOWER FARM RESET. THE SOIL HAS FORGOTTEN EVERYTHING.');return;
     }
     won = false;
     quizActive = false;
@@ -4237,7 +4692,7 @@
     $('p1-name').value = names[0] || 'You';
     $('p2-name').value = names[1] || 'Her';
     pendingProfiles = Array.isArray(payload.profiles) ? payload.profiles : null;
-    startRoute = ['full', 'kitchen', 'rain', 'quiz'].includes(payload.route) ? payload.route : 'full';
+    startRoute = ['full', 'kitchen', 'rain', 'farm', 'quiz'].includes(payload.route) ? payload.route : 'full';
     startGame();
   }
 
@@ -4271,6 +4726,7 @@
       case 'replayEpisode': replayEpisode(); break;
       case 'showDinnerIntro': showDinnerIntro(); break;
       case 'showRainIntro': showRainIntro(); break;
+      case 'showFarmIntro': showFarmIntro(); break;
       case 'startPartnerQuiz': startPartnerQuiz(); break;
       default: console.warn('Unknown network flow action', action, data);
     }
@@ -4297,6 +4753,11 @@
     const r = world.rain;
     if (currentLevel === 'rain' && r?.mini?.active && r.mini.playerIndex === 1 && code === 'KeyE') {
       handleRainMiniInput(1, down);
+      return;
+    }
+    const f = world.farm;
+    if (currentLevel === 'farm' && f?.mini?.active && f.mini.playerIndex === 1 && code === 'KeyE') {
+      handleFarmMiniInput(1, down);
       return;
     }
     const map = {
@@ -4340,6 +4801,8 @@
         homeGrab: p.homeGrabItem?.name || null,
         homeGrabSide: p.homeGrabSide ?? null,
         rainHeld: p.rainHeldItem?.name || null,
+        farmTool: p.farmHeldTool || null,
+        farmAction: p.farmAction ? { kind:p.farmAction.kind, ms:Math.max(0,p.farmAction.until-performance.now()), duration:p.farmAction.duration, target:p.farmAction.target } : null,
         knockedMs: Math.max(0, (p.knockedUntil || 0) - performance.now())
       })),
       home: currentLevel === 'sofa' && world.arrange ? {
@@ -4363,6 +4826,7 @@
       vaseBroken: !!world.vase?.broken,
       dinner: null,
         rain: null,
+    farm: null,
       quiz: quizActive ? {
         index: quiz.index,
         phase: quiz.phase,
@@ -4429,7 +4893,12 @@
         blanket:{state:r.blanketItem.state,p:[r.blanket.position.x,r.blanket.position.y,r.blanket.position.z],ry:r.blanket.rotation.y,heldBy:r.blanketItem.heldBy?players.indexOf(r.blanketItem.heldBy):-1,scale:[r.blanket.scale.x,r.blanket.scale.y,r.blanket.scale.z]},
         cat:r.cat?.group?networkObjectState(r.cat.group):null
       };
-    }    return snap;
+    }
+    if (currentLevel === 'farm' && world.farm) {
+      const f=world.farm;snap.farm={stage:f.stage,finalReady:[...f.finalReady.entries()].map(([slot,data])=>[slot,{idx:data.idx}]),celebration:!!f.celebration,mini:f.mini?{...f.mini}:null,cat:f.cat?.group?networkObjectState(f.cat.group):null,
+        cleanup:f.cleanupPairs.map(x=>!!x.cleared),cells:f.soilCells.map(x=>({digHits:x.digHits,composted:!!x.composted,raked:!!x.raked,watered:!!x.watered})),holes:f.holeData.map(x=>({made:!!x.made,seeded:!!x.seeded,covered:!!x.covered}))};
+    }
+    return snap;
   }
 
   function setNetTarget(object, state) {
@@ -4479,6 +4948,8 @@
       p.patience = ps.patience;
       p.grabbing = !!ps.grabbing;
       p.grabSide = ps.grabSide;
+      if ((ps.farmTool || null) !== (p.farmHeldTool || null)) setFarmHeldTool(p, ps.farmTool || null, true);
+      if (ps.farmAction?.ms > 30) { const dur=ps.farmAction.duration||ps.farmAction.ms, now=performance.now(); p.farmAction={kind:ps.farmAction.kind,start:now-Math.max(0,dur-ps.farmAction.ms),until:now+ps.farmAction.ms,duration:dur,target:ps.farmAction.target||null}; }
       if (ps.knockedMs > 40) p.knockedUntil = performance.now() + ps.knockedMs;
       else { p.knockedUntil = 0; resetPlayerKnockPose(p); }
     });
@@ -4599,6 +5070,14 @@
       updateRainHUD();
     }
 
+    if (snap.farm && world.farm) {
+      const f=world.farm,sf=snap.farm;const hadMini=!!f.mini?.active;f.stage=Number(sf.stage||0);f.mini=sf.mini?{...sf.mini}:null;if(hadMini&&!f.mini)flashTaskSuccess('Farm task complete ✦');
+      (sf.cleanup||[]).forEach((v,i)=>{if(f.cleanupPairs[i])f.cleanupPairs[i].cleared=!!v;});
+      (sf.cells||[]).forEach((v,i)=>{const c=f.soilCells[i];if(!c)return;c.digHits=Number(v.digHits||0);c.composted=!!v.composted;c.raked=!!v.raked;c.watered=!!v.watered;});
+      (sf.holes||[]).forEach((v,i)=>{const h=f.holeData[i];if(!h)return;h.made=!!v.made;h.seeded=!!v.seeded;h.covered=!!v.covered;});
+      f.finalReady=new Map((sf.finalReady||[]).map(([slot,data])=>[slot,{idx:data.idx,at:performance.now()}]));const wasCelebrating=!!f.celebration;f.celebration=!!sf.celebration;if(f.celebration&&!wasCelebrating)f.bloomStart=performance.now();if(sf.cat&&f.cat?.group)setNetTarget(f.cat.group,sf.cat);applyFarmVisualStage();if(f.celebration){if(!f.bloomStart)f.bloomStart=performance.now();animateFarmBloom();}updateFarmHUD();
+    }
+
     syncQuizSnapshot(snap.quiz);
     updateHUD();
   }
@@ -4625,6 +5104,11 @@
       world.rain.fairy.forEach((b,i)=>{if(world.rain.fairyOn)b.scale.setScalar(.86+Math.sin(elapsed*2.2+i)*.15);});
       if(world.rain.tvOn){world.rain.tvGlow.intensity=5.2+Math.sin(elapsed*2.6)*.8;world.rain.tvMat.emissiveIntensity=.82+Math.sin(elapsed*2.1)*.08;}
       for(const drop of world.rain.rainDrops){drop.position.y-=dt*3.0;drop.position.x-=dt*.16;if(drop.position.y<.72){drop.position.y=3.55;drop.position.x=-4.1+Math.random()*6.2;}}
+    } else if (currentLevel === 'farm' && world.farm) {
+      smoothObject(world.farm.cat?.group,10);
+      world.farm.plants.forEach((p,i)=>{if(world.farm.stage>=8)p.rotation.z=Math.sin(elapsed*1.35+i*.7)*.018;});
+      animateFarmBloom();
+      updateFarmHUD();
     }
     players.forEach(p=>updateCarryPose(p));
   }
@@ -4690,6 +5174,12 @@
             handleRainMiniInput(r.mini.playerIndex, true);
             miniHandled = true;
           }
+        } else if (currentLevel === 'farm' && world.farm?.mini?.active) {
+          const activePlayer = players[world.farm.mini.playerIndex];
+          if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) {
+            handleFarmMiniInput(world.farm.mini.playerIndex, true);
+            miniHandled = true;
+          }
         }
         if (!miniHandled) for (const p of players) if (bindingHas(p.controls.grab, e.code)) p.toggleGrab();
       }
@@ -4705,6 +5195,9 @@
       } else if (currentLevel === 'rain' && world.rain?.mini?.active) {
         const activePlayer = players[world.rain.mini.playerIndex];
         if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) handleRainMiniInput(world.rain.mini.playerIndex, false);
+      } else if (currentLevel === 'farm' && world.farm?.mini?.active) {
+        const activePlayer = players[world.farm.mini.playerIndex];
+        if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) handleFarmMiniInput(world.farm.mini.playerIndex, false);
       }
       keys[e.code] = false;
     });
@@ -4763,6 +5256,8 @@
       updateDinner(dt);
     } else if (currentLevel === 'rain') {
       updateRain(dt);
+    } else if (currentLevel === 'farm') {
+      updateFarm(dt);
     }
 
     if (gameStarted && !won) {

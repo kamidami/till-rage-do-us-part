@@ -1,10 +1,10 @@
 // =============================================================
-// TILL RAGE DO US PART v2.2.1 — STABILITY HOTFIX
+// TILL RAGE DO US PART v2.4 — SUNFLOWERS FOR TWO
 // Easy-to-edit values live here.
 // =============================================================
 window.GAME_CONFIG = {
   title: "Till Rage Do Us Part",
-  build: "v2.2.1 Stability Hotfix",
+  build: "v2.4 Sunflowers for Two",
 
   playerSpeed: 4.15,
   playerRadius: 0.46,

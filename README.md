@@ -1,3 +1,11 @@
+# Till Rage Do Us Part — v2.5 Direct Farming
+
+Sunflowers for Two now uses direct in-world farming for the core field work: pick up tools, shovel beds with repeated strokes, spread compost, rake the soil, make visible seed holes, plant seeds, cover them, and water until the earth darkens. Assembly-style close-ups remain only for irrigation/scarecrow/stem support.
+
+# Till Rage Do Us Part — v2.4 Sunflowers for Two
+
+This build adds **Chapter 4: Sunflowers for Two** after Movie Night. The farm is untimed and visually transforms as the couple clears the patch, prepares the soil, makes seed holes, plants sunflower seeds, covers and waters them, connects irrigation, protects/supports the plants, and completes a two-player final watering that blooms the field.
+
 # Till Rage Do Us Part — Online v2.3.2
 
 ## Movie Night Update
@@ -39,7 +47,7 @@ Optional interactions: pet Kevin, toggle fairy lights, or pause by the window to
 - Contextual action cards in Home, Kitchen and Movie Night.
 - Dedicated movie close-up visuals for sofa searching, movie choosing and popcorn making.
 - Mobile ACT label follows the current context.
-- Routes: Full Episode, Kitchen, Movie Night and Questions.
+- Routes: Full Episode, Kitchen, Movie Night, Sunflower Farm and Questions.
 - 12 relationship questions / 24 maximum Understanding.
 - No Laundry chapter.
 
@@ -76,7 +84,7 @@ Open `http://localhost:3000`. For two-player testing on one computer, use normal
 npm test
 ```
 
-The suite checks multiplayer room flow plus Movie Night replacement, interactive movie mini-games, removed tea implementation, removed Laundry chapter, route compatibility and UI assets.
+The suite checks multiplayer room flow (including the Farm route), Movie Night stability, the 12-step sunflower chapter, soil/seed/watering progression, removed tea/Laundry gameplay, route compatibility and UI assets.
 
 ## Deployment
 
