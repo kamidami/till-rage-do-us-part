@@ -1,0 +1,42 @@
+/* =============================================================
+   TILL RAGE DO US PART v2.3 — MOVIE NIGHT UPDATE
+   Replaces the tea ritual with a tactile cozy movie-night chapter.
+   ============================================================= */
+body.rain-mode #crisis-track{width:min(760px,64vw)!important}
+body.rain-mode .patience-wrap{opacity:.48!important}
+
+/* Movie mini-game visual layers are dormant for every other task. */
+.task-sofa-art,.task-tv-art,.task-remote-art,.task-popcorn-art{position:absolute;opacity:0;pointer-events:none}
+
+.task-sofa-art{left:50%;bottom:23px;width:190px;height:88px;transform:translateX(-50%);border-radius:24px 24px 11px 11px;background:#bd7f91;box-shadow:inset 0 13px 0 #dba1ad,0 12px 20px rgba(0,0,0,.18)}
+.task-sofa-art::before,.task-sofa-art::after{content:"";position:absolute;top:36px;width:37px;height:54px;border-radius:12px;background:#aa6f82}.task-sofa-art::before{left:-21px}.task-sofa-art::after{right:-21px}
+.task-sofa-art i{position:absolute;top:15px;width:54px;height:47px;border-radius:15px;background:#e4aab7;box-shadow:0 5px 10px rgba(70,37,50,.12)}
+.task-sofa-art i:nth-child(1){left:12px;transform:rotate(-3deg)}.task-sofa-art i:nth-child(2){left:68px}.task-sofa-art i:nth-child(3){right:12px;transform:rotate(3deg)}
+
+.task-remote-art{left:50%;bottom:64px;width:38px;height:78px;transform:translateX(-50%) rotate(9deg);border-radius:10px;background:#393740;box-shadow:inset 0 0 0 2px rgba(255,255,255,.08),0 8px 14px rgba(0,0,0,.2)}
+.task-remote-art::before{content:"";position:absolute;left:14px;top:10px;width:10px;height:10px;border-radius:50%;background:#ed7d88}
+.task-remote-art i{position:absolute;width:7px;height:7px;border-radius:50%;background:#afb3bc;left:9px;top:32px}.task-remote-art i:nth-child(2){left:22px}.task-remote-art i:nth-child(3){left:15px;top:46px;background:#f0c879}
+
+.task-tv-art{left:50%;bottom:24px;width:230px;height:120px;transform:translateX(-50%);border:10px solid #33343b;border-radius:13px;background:linear-gradient(135deg,#33415d,#151b2b);box-shadow:0 12px 22px rgba(0,0,0,.23),inset 0 0 30px rgba(160,194,255,.15);overflow:hidden}
+.task-tv-art::before{content:"MOVIE CAROUSEL";position:absolute;left:0;right:0;top:8px;text-align:center;font-size:8px;letter-spacing:.14em;font-weight:1000;color:#dce7ff}
+.task-tv-art b{position:absolute;bottom:22px;width:62px;height:56px;border-radius:8px;display:grid;place-items:center;text-align:center;font-size:8px;line-height:1.05;color:#fff6e9;box-shadow:0 5px 10px rgba(0,0,0,.22)}
+.task-tv-art b:nth-child(1){left:10px;background:#bd6d86}.task-tv-art b:nth-child(2){left:74px;background:#58739c}.task-tv-art b:nth-child(3){right:10px;background:#c48a43}
+
+.task-popcorn-art{left:50%;bottom:18px;width:140px;height:72px;transform:translateX(-50%);border-radius:10px 10px 42px 42px;background:linear-gradient(90deg,#d7748d 0 18%,#fff0da 18% 35%,#d7748d 35% 52%,#fff0da 52% 69%,#d7748d 69% 86%,#fff0da 86%);box-shadow:inset 0 8px 0 rgba(255,255,255,.18),0 10px 17px rgba(0,0,0,.18)}
+.task-popcorn-art i{position:absolute;width:24px;height:22px;border-radius:48%;background:#fff0b7;box-shadow:inset -4px -3px 0 #e8c978;animation:movie-pop 1s ease-in-out infinite}
+.task-popcorn-art i:nth-child(1){left:12px;top:-7px}.task-popcorn-art i:nth-child(2){left:34px;top:-19px;animation-delay:.12s}.task-popcorn-art i:nth-child(3){left:56px;top:-9px;animation-delay:.24s}.task-popcorn-art i:nth-child(4){left:77px;top:-22px;animation-delay:.36s}.task-popcorn-art i:nth-child(5){left:98px;top:-8px;animation-delay:.48s}.task-popcorn-art i:nth-child(6){left:116px;top:-17px;animation-delay:.6s}
+
+/* Hide kitchen/tea visual props inside the movie close-ups. */
+.task-visual[data-task-type^="movie-"] .task-basin,.task-visual[data-task-type^="movie-"] .task-faucet,.task-visual[data-task-type^="movie-"] .task-water-stream,.task-visual[data-task-type^="movie-"] .task-prop,.task-visual[data-task-type^="movie-"] .task-knife,.task-visual[data-task-type^="movie-"] .task-pot-art,.task-visual[data-task-type^="movie-"] .task-cup-art,.task-visual[data-task-type^="movie-"] .task-kettle-art,.task-visual[data-task-type^="movie-"] .task-spoon-art,.task-visual[data-task-type^="movie-"] .task-plate-art,.task-visual[data-task-type^="movie-"] .task-steam-art{opacity:0!important}
+.task-visual[data-task-type="movie-search"] .task-sofa-art{opacity:1;animation:movie-sofa-breathe 1.6s ease-in-out infinite}
+.task-visual[data-task-type="movie-search"] .task-remote-art{opacity:.95;animation:movie-remote-peek 1.25s ease-in-out infinite}
+.task-visual[data-task-type="movie-pick"] .task-tv-art{opacity:1;animation:movie-tv-glow 1.4s ease-in-out infinite}
+.task-visual[data-task-type="movie-popcorn"] .task-popcorn-art{opacity:1}
+.task-visual[data-task-type="movie-popcorn"] .task-sparkles i{opacity:.8;animation:task-spark 1s ease-in-out infinite}
+
+@keyframes movie-sofa-breathe{0%,100%{transform:translateX(-50%) scale(.98)}50%{transform:translateX(-50%) scale(1.02)}}
+@keyframes movie-remote-peek{0%,100%{transform:translateX(-50%) rotate(9deg) translateY(14px);opacity:.45}50%{transform:translateX(-50%) rotate(-5deg) translateY(0);opacity:1}}
+@keyframes movie-tv-glow{0%,100%{filter:brightness(.9)}50%{filter:brightness(1.12)}}
+@keyframes movie-pop{0%,100%{transform:translateY(5px) rotate(-4deg)}45%{transform:translateY(-11px) rotate(7deg)}}
+
+@media(max-width:900px){body.rain-mode #crisis-track{width:min(640px,72vw)!important}}

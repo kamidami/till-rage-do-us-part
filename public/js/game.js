@@ -26,12 +26,16 @@
   let dinnerStage = 0;
   let dinnerStartTime = 0;
   let dinnerTime = 0;
+  let rainTime = 0;
   let storyMode = 'intro';
   let startRoute = 'full';
   const skippedLevels = new Set();
   let kitchenChefIndex = 0;
   let lastSpankAt = -9999;
   let pendingProfiles = null;
+  let taskFlashUntil = 0;
+  const cameraFocusSmooth = new THREE.Vector3();
+  let cameraFocusLevel = '';
 
   const keys = Object.create(null);
   const players = [];
@@ -45,6 +49,8 @@
     cat: null,
     vase: null,
     dinner: null,
+    rain: null,
+    menuActors: [],
     arrange: null,
     bounds: { minX: -16.45, maxX: 16.45, minZ: -9.45, maxZ: 9.45 }
   };
@@ -157,62 +163,95 @@
       this.heldItem = null;
       this.lastDinnerInteract = -9999;
       this.homeHeldItem = null;
+      this.rainHeldItem = null;
       this.homeGrabItem = null;
       this.homeGrabSide = null;
       this.knockedUntil = 0;
     }
 
     update(dt) {
-      const mini = currentLevel === 'dinner' ? world.dinner?.mini : null;
-      if (mini?.active && mini.playerIndex === players.indexOf(this)) {
-        this.velocity.set(0, 0, 0);
-        if (this.heldItem) updateHeldDinnerItem(this);
-        updatePlayerFace(this);
-        return;
+      const now = performance.now();
+      if (this.knockedUntil && now >= this.knockedUntil) {
+        this.knockedUntil = 0;
+        resetPlayerKnockPose(this);
       }
-
-      if (performance.now() < this.knockedUntil) {
+      if (now < this.knockedUntil) {
         this.velocity.multiplyScalar(0.7);
         const body = this.group.userData.body;
         if (body) {
           body.rotation.z = (this.id === 1 ? -1 : 1) * 1.18;
+          body.rotation.x = -0.12;
           body.position.y = -0.22;
         }
         updatePlayerFace(this);
         return;
-      } else if (this.knockedUntil) {
-        this.knockedUntil = 0;
-        const body = this.group.userData.body;
-        if (body) { body.rotation.z = 0; body.rotation.x = 0; body.position.y = 0.03; }
       }
 
       const x = (bindingDown(this.controls.right) ? 1 : 0) - (bindingDown(this.controls.left) ? 1 : 0);
       const z = (bindingDown(this.controls.back) ? 1 : 0) - (bindingDown(this.controls.forward) ? 1 : 0);
+      const movementRequested = Math.abs(x) + Math.abs(z) > 0;
+      const mini = currentLevel === 'dinner' ? world.dinner?.mini : currentLevel === 'rain' ? world.rain?.mini : null;
+      if (mini?.active && mini.playerIndex === players.indexOf(this)) {
+        if (movementRequested) {
+          cancelActiveMiniForMovement(this);
+        } else {
+          this.velocity.set(0, 0, 0);
+          if (this.heldItem) updateHeldDinnerItem(this);
+          if (this.rainHeldItem) updateRainHeldItem(this);
+          updatePlayerFace(this);
+          return;
+        }
+      }
+
       const dir = new THREE.Vector3(x, 0, z);
       if (dir.lengthSq() > 1) dir.normalize();
 
       const onRug = currentLevel === 'sofa'
         ? pointInRect(this.group.position.x, this.group.position.z, C.rug)
-        : isKitchenSlippery(this.group.position.x, this.group.position.z);
+        : currentLevel === 'dinner'
+          ? isKitchenSlippery(this.group.position.x, this.group.position.z)
+          : false;
       const accel = onRug ? C.rugAcceleration : C.normalAcceleration;
       const stop = onRug ? C.rugStop : C.normalStop;
 
-      this.velocity.x = damp(this.velocity.x, dir.x * C.playerSpeed, accel, dt);
-      this.velocity.z = damp(this.velocity.z, dir.z * C.playerSpeed, accel, dt);
+      const heavyCarry = this.grabbing || this.homeGrabItem;
+      const lightCarry = this.homeHeldItem || this.heldItem || this.rainHeldItem;
+      const loadFactor = heavyCarry ? 0.72 : lightCarry ? 0.88 : 1;
+      this.velocity.x = damp(this.velocity.x, dir.x * C.playerSpeed * loadFactor, accel, dt);
+      this.velocity.z = damp(this.velocity.z, dir.z * C.playerSpeed * loadFactor, accel, dt);
       if (dir.lengthSq() < 0.01) {
         this.velocity.x = damp(this.velocity.x, 0, stop, dt);
         this.velocity.z = damp(this.velocity.z, 0, stop, dt);
       }
 
+      // If furniture, a door, or a network correction ever leaves a player embedded,
+      // recover to the nearest free spot instead of trapping movement forever.
+      nudgePlayerOutOfWorld(this);
       const old = this.group.position.clone();
-      this.group.position.addScaledVector(this.velocity, dt);
       const b = world.bounds || { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
-      this.group.position.x = clamp(this.group.position.x, b.minX, b.maxX);
-      this.group.position.z = clamp(this.group.position.z, b.minZ, b.maxZ);
+      const dxMove = this.velocity.x * dt;
+      const dzMove = this.velocity.z * dt;
+      const fullX = clamp(old.x + dxMove, b.minX, b.maxX);
+      const fullZ = clamp(old.z + dzMove, b.minZ, b.maxZ);
 
-      if (playerHitsWorld(this, this.group.position.x, this.group.position.z)) {
-        this.group.position.copy(old);
-        this.velocity.multiplyScalar(onRug ? 0.72 : 0.12);
+      if (!playerHitsWorld(this, fullX, fullZ)) {
+        this.group.position.x = fullX;
+        this.group.position.z = fullZ;
+      } else {
+        // Axis-separated sliding prevents sticky corners around furniture and walls.
+        let moved = false;
+        const slideX = clamp(old.x + dxMove, b.minX, b.maxX);
+        if (!playerHitsWorld(this, slideX, old.z)) {
+          this.group.position.x = slideX;
+          moved = true;
+        }
+        const baseZ = this.group.position.z;
+        const slideZ = clamp(baseZ + dzMove, b.minZ, b.maxZ);
+        if (!playerHitsWorld(this, this.group.position.x, slideZ)) {
+          this.group.position.z = slideZ;
+          moved = true;
+        }
+        if (!moved) this.velocity.multiplyScalar(onRug ? 0.62 : 0.18);
       }
 
       if (dir.lengthSq() > 0.01) {
@@ -247,11 +286,16 @@
             this.patience = clamp(this.patience + C.patienceRecovery * dt, 0, 100);
           }
         }
-      } else {
+      } else if (currentLevel === 'dinner') {
         this.canGrab = !!nearestDinnerAction(this);
         this.group.userData.heart.visible = this.canGrab;
         updateHeldDinnerItem(this);
         this.patience = clamp(this.patience + C.patienceRecovery * 0.45 * dt, 0, 100);
+      } else if (currentLevel === 'rain') {
+        this.canGrab = !!nearestRainAction(this);
+        this.group.userData.heart.visible = this.canGrab;
+        updateRainHeldItem(this);
+        this.patience = clamp(this.patience + C.patienceRecovery * 1.0 * dt, 0, 100);
       }
 
       updateCarryPose(this);
@@ -260,8 +304,13 @@
 
     toggleGrab() {
       if (!gameStarted || won) return;
+      if (performance.now() < this.knockedUntil) return;
       if (currentLevel === 'dinner') {
         dinnerInteract(this);
+        return;
+      }
+      if (currentLevel === 'rain') {
+        rainInteract(this);
         return;
       }
       if (world.arrange?.active) {
@@ -308,6 +357,7 @@
       this.heldItem = null;
       this.lastDinnerInteract = -9999;
       this.homeHeldItem = null;
+      this.rainHeldItem = null;
       this.homeGrabItem = null;
       this.homeGrabSide = null;
       this.knockedUntil = 0;
@@ -332,16 +382,17 @@
     renderer.toneMappingExposure = 1.12;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x160d20);
-    scene.fog = new THREE.Fog(0x160d20, 18, 39);
+    scene.background = new THREE.Color(0x1b2026);
+    scene.fog = new THREE.Fog(0x1b2026, 27, 55);
 
-    camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(0, 19.0, 20.6);
+    camera = new THREE.PerspectiveCamera(44, innerWidth / innerHeight, 0.1, 120);
+    camera.position.set(0, 10.6, 13.8);
     camera.lookAt(0, 0, 0);
 
     clock = new THREE.Clock();
     buildWorld();
     addLights();
+    buildMenuPreview();
     bindUI();
     setStage(0, true);
     onResize();
@@ -395,17 +446,17 @@
 
   function buildWorld() {
     world.bounds = { minX: -16.45, maxX: 16.45, minZ: -9.45, maxZ: 9.45 };
-    const floor = mesh(new THREE.BoxGeometry(34, 0.35, 20), mat(0x3a263e, 0.92), false, true);
+    const floor = mesh(new THREE.BoxGeometry(34, 0.22, 20), mat(0x8a634a, 0.94), false, true);
     floor.position.y = -0.22;
     scene.add(floor);
 
     // Larger apartment floor details make the space read like a real room rather than an arena.
     for (let x = -16; x <= 16; x += 2) {
-      const plank = mesh(new THREE.BoxGeometry(0.025, 0.01, 19.2), mat(0x51364e, 0.96), false, true);
+      const plank = mesh(new THREE.BoxGeometry(0.022, 0.01, 19.2), mat(0x6d4937, 0.96), false, true);
       plank.position.set(x, -0.025, 0); scene.add(plank);
     }
 
-    const rugMat = new THREE.MeshStandardMaterial({ color: C.colors.rug, roughness: 0.75, emissive: 0x29102f, emissiveIntensity: 0.55 });
+    const rugMat = new THREE.MeshStandardMaterial({ color: 0x8d6679, roughness: 0.75, emissive: 0x29102f, emissiveIntensity: 0.55 });
     world.rug = mesh(new THREE.BoxGeometry(C.rug.maxX - C.rug.minX, 0.035, C.rug.maxZ - C.rug.minZ), rugMat, false, true);
     world.rug.position.set((C.rug.minX + C.rug.maxX) / 2, 0.018, 0);
     scene.add(world.rug);
@@ -447,6 +498,7 @@
     addLamp(15.2, -7.7);
     addMovingBoxes(-2.8, 8.0);
     world.vase = makeFragileVase(7.2, -7.0); scene.add(world.vase.group);
+    addCozyApartmentArchitecture();
 
     world.sofa = makeSofa();
     world.sofa.scale.setScalar(1.18);
@@ -465,7 +517,7 @@
     world.cat.group.position.x = 11.5;
     scene.add(world.cat.group);
 
-    for (let i = 0; i < 34; i++) {
+    for (let i = 0; i < 14; i++) {
       const h = makeHeartMesh(i % 2 ? 0xff6f91 : 0x8f71ff);
       const ss = 0.05 + Math.random() * 0.075;
       h.scale.set(ss, ss, ss);
@@ -486,10 +538,10 @@
   }
 
   function addLights() {
-    scene.add(new THREE.HemisphereLight(0xffe4f2, 0x30183a, 2.15));
+    scene.add(new THREE.HemisphereLight(0xffead8, 0x27313a, 1.42));
 
     const key = new THREE.DirectionalLight(0xffe2ec, 3.0);
-    key.position.set(-4, 10, 6);
+    key.position.set(-6, 11, 7);
     key.castShadow = true;
     key.shadow.mapSize.set(window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048, window.matchMedia('(pointer: coarse)').matches ? 1024 : 2048);
     key.shadow.camera.left = -14;
@@ -498,24 +550,24 @@
     key.shadow.camera.bottom = -12;
     scene.add(key);
 
-    const pink = new THREE.PointLight(0xff5c8a, 18, 12, 2);
+    const pink = new THREE.PointLight(0xf3a1b5, 7, 13, 2);
     pink.position.set(7, 3, 0);
     scene.add(pink);
 
-    const blue = new THREE.PointLight(0x698cff, 16, 15, 2);
+    const blue = new THREE.PointLight(0x7c9bb0, 6, 17, 2);
     blue.position.set(-9, 3.5, -2);
     scene.add(blue);
-    const warm = new THREE.PointLight(0xffb77e, 22, 18, 2);
+    const warm = new THREE.PointLight(0xffc286, 18, 20, 2);
     warm.position.set(10.5, 4.2, 0);
     scene.add(warm);
-    const cozy = new THREE.PointLight(0xff7da8, 13, 14, 2);
+    const cozy = new THREE.PointLight(0xe6a6a0, 8, 14, 2);
     cozy.position.set(7.5, 3.0, 6.0);
     scene.add(cozy);
   }
 
   function addWall(x, z, w, d, name, visible = true) {
-    const wall = mesh(new THREE.BoxGeometry(w, visible ? 1.65 : 0.78, d), mat(visible ? C.colors.wall : 0x61435f, 0.84));
-    wall.position.set(x, visible ? 0.8 : 0.36, z);
+    const wall = mesh(new THREE.BoxGeometry(w, visible ? 2.75 : 0.58, d), mat(visible ? 0xe9dfd3 : 0x7d665d, 0.9));
+    wall.position.set(x, visible ? 1.34 : 0.24, z);
     scene.add(wall);
     world.colliders.push({ x, z, hx: w / 2, hz: d / 2, mesh: wall, name });
   }
@@ -587,6 +639,137 @@
       scene.add(box);
       world.colliders.push({ x: box.position.x, z: box.position.z, hx: 0.42, hz: 0.42, mesh: box, name: 'box' });
     }
+  }
+
+
+  function addCozyApartmentArchitecture() {
+    // Tall visual walls are separate from gameplay colliders so the camera can look
+    // into the room like a dollhouse without the apartment feeling like a platform.
+    const wallMat = mat(0xeee4d8, 0.96);
+    const trimMat = mat(0xc8ad96, 0.9);
+    const woodDark = mat(0x6c493a, 0.88);
+
+    const back = mesh(new THREE.BoxGeometry(33.6, 3.5, 0.22), wallMat);
+    back.position.set(0, 1.72, -9.74);
+    scene.add(back);
+    const left = mesh(new THREE.BoxGeometry(0.22, 3.5, 19.2), wallMat);
+    left.position.set(-16.78, 1.72, 0);
+    scene.add(left);
+    const right = mesh(new THREE.BoxGeometry(0.22, 3.5, 19.2), wallMat);
+    right.position.set(16.78, 1.72, 0);
+    scene.add(right);
+
+    // Baseboards instantly make the world read as an interior instead of an arena.
+    for (const spec of [
+      [0, .12, -9.57, 33.2, .18, .12],
+      [-16.62, .12, 0, .12, .18, 19],
+      [16.62, .12, 0, .12, .18, 19],
+    ]) {
+      const b = mesh(new THREE.BoxGeometry(spec[3], spec[4], spec[5]), trimMat, false, true);
+      b.position.set(spec[0], spec[1], spec[2]);
+      scene.add(b);
+    }
+
+    // Two night windows with curtains and a soft city glow outside.
+    for (const x of [-10.7, 9.7]) {
+      const recess = mesh(new THREE.BoxGeometry(4.0, 2.25, .13), mat(0x292d3b, .5), false, false);
+      recess.position.set(x, 2.0, -9.58);
+      scene.add(recess);
+      const glass = mesh(new THREE.PlaneGeometry(3.55, 1.8),
+        new THREE.MeshStandardMaterial({color:0x617286,roughness:.28,metalness:.05,transparent:true,opacity:.72,emissive:0x1c2b3d,emissiveIntensity:.75}),
+        false,false);
+      glass.position.set(x, 2.0, -9.49);
+      scene.add(glass);
+      for (const cx of [-1.94, 1.94]) {
+        const curtain = mesh(new THREE.BoxGeometry(.42, 2.5, .16), mat(0xb88b8f,.96), false, false);
+        curtain.position.set(x + cx, 1.9, -9.36);
+        curtain.scale.y = 1.06;
+        scene.add(curtain);
+      }
+      const sill = mesh(new THREE.BoxGeometry(4.25,.16,.48), trimMat);
+      sill.position.set(x, .88, -9.33);
+      scene.add(sill);
+      const moonGlow = new THREE.PointLight(0x9eb9d4, 4.5, 8, 2);
+      moonGlow.position.set(x, 2.4, -8.6);
+      scene.add(moonGlow);
+    }
+
+    // Living-room wall art.
+    const artColors = [0xb97878,0x789b87,0xc5a56b];
+    [-2.0, 1.4, 4.7].forEach((x,i)=>{
+      const frame=mesh(new THREE.BoxGeometry(1.45,1.2,.12),woodDark);
+      frame.position.set(x,2.05,-9.42); scene.add(frame);
+      const art=mesh(new THREE.BoxGeometry(1.15,.9,.06),mat(artColors[i],.98));
+      art.position.set(x,2.05,-9.34); scene.add(art);
+    });
+
+    // A believable dining nook on the far right, visible from the moving level.
+    const diningTop = mesh(new THREE.CylinderGeometry(1.45,1.45,.18,28), mat(0xb47f60,.88));
+    diningTop.position.set(12.6,.82,-5.5); scene.add(diningTop);
+    const pedestal = mesh(new THREE.CylinderGeometry(.24,.38,.78,18), mat(0x805945,.9));
+    pedestal.position.set(12.6,.4,-5.5); scene.add(pedestal);
+    for (const a of [0,Math.PI/2,Math.PI,Math.PI*1.5]) {
+      const chair = new THREE.Group();
+      const seat=mesh(new THREE.BoxGeometry(.8,.14,.8),mat(0x9f765e,.9));seat.position.y=.52;chair.add(seat);
+      const backc=mesh(new THREE.BoxGeometry(.8,.86,.13),mat(0x9f765e,.9));backc.position.set(0,.93,-.34);chair.add(backc);
+      chair.position.set(12.6+Math.cos(a)*2.15,0,-5.5+Math.sin(a)*2.15);chair.rotation.y=-a+Math.PI/2;scene.add(chair);
+    }
+
+    // Small warm ceiling pendants.
+    for (const [x,z] of [[-9,0],[8.8,0],[12.5,-5.5]]) {
+      const cord=mesh(new THREE.CylinderGeometry(.018,.018,.9,8),mat(0x4a3e3a,.5),false,false);cord.position.set(x,3.4,z);scene.add(cord);
+      const shade=mesh(new THREE.ConeGeometry(.42,.46,22,1,true),mat(0xd8aa7e,.78),false,false);shade.position.set(x,2.95,z);scene.add(shade);
+      const light=new THREE.PointLight(0xffc98e,8,7.5,2);light.position.set(x,2.65,z);scene.add(light);
+    }
+
+    // Moving boxes are no longer the only clue that this is a home.
+    addWorldLabel('OUR NEW HOME', 10.6, 3.05, -9.25, .48);
+  }
+
+  function profileFromLocalControls(index) {
+    const onlineMenu = $('online-screen')?.classList.contains('active');
+    if (onlineMenu && index === 0) return {
+      skin: $('online-skin')?.value || 'warm',
+      outfit: $('online-outfit')?.value || 'casual',
+      dupatta: !!$('online-dupatta')?.checked,
+      sunflower: $('online-sunflower') ? !!$('online-sunflower').checked : true
+    };
+    if (index === 0) return {
+      skin: $('p1-skin')?.value || 'warm',
+      outfit: $('p1-outfit')?.value || 'casual',
+      dupatta: false, sunflower: false
+    };
+    return {
+      skin: $('p2-skin')?.value || 'medium',
+      outfit: $('p2-outfit')?.value || 'salwar',
+      dupatta: !!$('p2-dupatta')?.checked,
+      sunflower: $('p2-sunflower') ? !!$('p2-sunflower').checked : true
+    };
+  }
+
+  function buildMenuPreview() {
+    clearMenuPreview();
+    if (!scene) return;
+    const profiles = [profileFromLocalControls(0), profileFromLocalControls(1)];
+    const a = makeCutePlayer(C.colors.playerOne, true, profiles[0]);
+    const b = makeCutePlayer(C.colors.playerTwo, false, profiles[1]);
+    a.position.set(9.4,0,4.2); b.position.set(11.1,0,4.2);
+    a.rotation.y = .08; b.rotation.y = -.08;
+    a.scale.setScalar(1.08); b.scale.setScalar(1.08);
+    scene.add(a,b);
+    world.menuActors=[a,b];
+    camera.position.set(10.2,6.4,11.8);
+    camera.lookAt(10.2,1.0,2.9);
+  }
+
+  function clearMenuPreview() {
+    for (const actor of world.menuActors || []) scene?.remove(actor);
+    world.menuActors=[];
+  }
+
+  function refreshMenuPreview() {
+    if (gameStarted || players.length) return;
+    buildMenuPreview();
   }
 
   function makePettyDoor() {
@@ -767,6 +950,43 @@
     return null;
   }
 
+  function homeActionText(player, action) {
+    const item = activeHomeItem();
+    if (!world.arrange?.active) {
+      if (player.grabbing) return 'Hold the sofa together and guide it toward the glowing room.';
+      if (player.canGrab) return 'Grab the nearby gold sofa handle.';
+      return 'Move toward a gold sofa handle. The sofa needs both of you.';
+    }
+    if (!item) return 'Take in the room. Somehow, it survived you both.';
+    if (!action) return item.heavy
+      ? `Move to an open gold handle on ${item.label}.`
+      : `Move closer to ${item.label}.`;
+    const labels = {
+      'pick-light': `Pick up ${item.label}${item.fragile ? ' carefully' : ''}.`,
+      'drop-light': `Put ${item.label} down gently.`,
+      'place-light': `Place ${item.label} in the glowing spot.`,
+      'grab-heavy': `Grab the ${action.side < 0 ? 'left' : 'right'} handle of ${item.label}.`,
+      'release-heavy': `Release ${item.label}.`
+    };
+    return labels[action.type] || `Interact with ${item.label}.`;
+  }
+
+  function updateHomeActionCards() {
+    if (currentLevel !== 'sofa') return;
+    $('action-prompts')?.classList.remove('hidden');
+    players.forEach((p, i) => {
+      const action = world.arrange?.active ? nearestHomeAction(p) : null;
+      const card = $(`p${i+1}-action-card`), text = $(`p${i+1}-action-text`), name = $(`p${i+1}-action-name`);
+      if (!card || !text || !name) return;
+      card.classList.remove('hidden');
+      name.textContent = `${p.name.toUpperCase()} · HOME DUTY`;
+      text.textContent = homeActionText(p, action);
+      const ready = world.arrange?.active ? !!action : !!(p.canGrab || p.grabbing);
+      card.classList.toggle('ready-action', ready);
+    });
+    $('grab-hint')?.classList.add('hidden');
+  }
+
   function homeInteract(player) {
     const action=nearestHomeAction(player);
     if(!action){ const item=activeHomeItem(); if(item) toast(`${player.name}: arrange ${item.label}. ${item.heavy?'Heavy item — both of you grab a gold handle.':'Get close and press interact to carry it.'}`); return; }
@@ -821,6 +1041,7 @@
     item.goalMesh.visible=false; item.goalTag.visible=false; if(item.pickupHalo)item.pickupHalo.visible=false; if(item.pickupTag)item.pickupTag.visible=false;
     world.arrange.placed+=1; chaos=Math.max(0,chaos-.5); beep(680,.065,.035); setTimeout(()=>beep(880,.07,.028),60);
     toast(`${item.label} PLACED. THE APARTMENT IS BECOMING SUSPICIOUSLY LIVABLE.`);
+    spawnBonkParticles(item.group.position.clone().setY(.55), 9); cameraShake=Math.max(cameraShake,.06);
     world.arrange.index+=1;
     activateHomeTask();
   }
@@ -851,7 +1072,7 @@
     world.sofa.rotation.y = 0;
     world.sofa.userData.slideVel.set(0,0,0);
     world.goalRing.material.opacity=.13; world.goalHeart.material.opacity=.28;
-    configureHomeTrack(); activateHomeTask();
+    configureHomeTrack(); activateHomeTask(); updateHomeActionCards();
     toast('1/7 SOFA PLACED. 2/7: COFFEE TABLE — BOTH OF YOU GRAB A HANDLE.');
   }
 
@@ -889,13 +1110,16 @@
       }
       if(item.pickupTag) item.pickupTag.visible=!item.heldBy&&!item.broken;
     }
-    $('grab-hint').classList.toggle('hidden',!players.some(p=>p.canGrab));
+    updateHomeActionCards();
   }
 
   function knockPlayer(player,duration=1.15) {
     if(!player)return; player.knockedUntil=Math.max(player.knockedUntil||0,performance.now()+duration*1000); player.velocity.multiplyScalar(.28);
     if(player.homeHeldItem) dropHomeItem(player,true);
     if(player.homeGrabItem){ player.homeGrabItem=null;player.homeGrabSide=null; }
+    if(player.rainHeldItem){
+      const item=player.rainHeldItem; item.heldBy=null; item.state='floor'; item.group.position.y = item === world.rain?.blanketItem ? 0.08 : item === world.rain?.remoteItem ? 0.10 : 0.18; player.rainHeldItem=null;
+    }
   }
 
   function skinToneHex(name) {
@@ -1146,12 +1370,23 @@
 
   function updateCarryPose(player) {
     const arms = player.group.userData.arms || [];
-    const carrying = !!(player.grabbing || player.homeHeldItem || player.homeGrabItem || player.heldItem);
+    const feet = player.group.userData.feet || [];
+    const carrying = !!(player.grabbing || player.homeHeldItem || player.homeGrabItem || player.heldItem || player.rainHeldItem);
+    const speed = Math.min(1, player.velocity.length() / Math.max(0.1, C.playerSpeed));
+    const stride = Math.sin(elapsed * (7.5 + speed * 4.0) + player.id) * speed;
     arms.forEach((arm, i) => {
-      const targetX = carrying ? -0.82 : 0;
-      arm.rotation.x = damp(arm.rotation.x || 0, targetX, 12, 0.016);
-      if (carrying && performance.now() >= (player.knockedUntil || 0)) arm.rotation.z = (i === 0 ? -1 : 1) * 0.12;
+      const walkSwing = (i === 0 ? 1 : -1) * stride * 0.34;
+      const targetX = carrying ? -0.86 : walkSwing;
+      arm.rotation.x = damp(arm.rotation.x || 0, targetX, 11, 0.016);
+      arm.rotation.z = damp(arm.rotation.z || 0, carrying ? (i === 0 ? -1 : 1) * 0.13 : (i === 0 ? -1 : 1) * 0.2, 10, 0.016);
     });
+    feet.forEach((foot, i) => {
+      foot.rotation.x = damp(foot.rotation.x || 0, (i === 0 ? 1 : -1) * stride * 0.45, 13, 0.016);
+    });
+    const body = player.group.userData.body;
+    if (body && performance.now() >= (player.knockedUntil || 0)) {
+      body.rotation.x = damp(body.rotation.x || 0, carrying ? -0.06 : speed * 0.035, 8, 0.016);
+    }
   }
 
   function updatePlayerFace(player) {
@@ -1348,6 +1583,53 @@
     return false;
   }
 
+  function resetPlayerKnockPose(player) {
+    const body = player?.group?.userData?.body;
+    if (!body) return;
+    body.position.y = 0.03;
+    body.rotation.x = 0;
+    body.rotation.z = 0;
+  }
+
+  function nudgePlayerOutOfWorld(player) {
+    if (!player?.group || !playerHitsWorld(player, player.group.position.x, player.group.position.z)) return false;
+    const origin = player.group.position.clone();
+    const b = world.bounds || { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
+    for (let radius = 0.18; radius <= 2.4; radius += 0.18) {
+      for (let i = 0; i < 20; i++) {
+        const a = (Math.PI * 2 * i) / 20;
+        const x = clamp(origin.x + Math.cos(a) * radius, b.minX, b.maxX);
+        const z = clamp(origin.z + Math.sin(a) * radius, b.minZ, b.maxZ);
+        if (!playerHitsWorld(player, x, z)) {
+          player.group.position.x = x;
+          player.group.position.z = z;
+          player.velocity.set(0, 0, 0);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function cancelActiveMiniForMovement(player) {
+    const idx = players.indexOf(player);
+    if (currentLevel === 'dinner' && world.dinner?.mini?.active && world.dinner.mini.playerIndex === idx) {
+      world.dinner.mini = null;
+      updateKitchenMiniUI();
+      toast(`${player.name} stepped away. Kitchen task cancelled — you can move freely.`);
+      return true;
+    }
+    if (currentLevel === 'rain' && world.rain?.mini?.active && world.rain.mini.playerIndex === idx) {
+      world.rain.mini = null;
+      if (world.rain.waterStream) world.rain.waterStream.visible = false;
+      updateRainMiniUI();
+      updateRainHUD();
+      toast(`${player.name} stepped away. Cozy task cancelled — nothing lost.`);
+      return true;
+    }
+    return false;
+  }
+
   function resolvePlayers() {
     if (players.length < 2) return;
     const a = players[0], b = players[1];
@@ -1479,7 +1761,7 @@
     const low = Math.min(...players.map(p => p.patience));
     if (low < 35) maybeComment('lowPatience', 4500);
 
-    $('grab-hint').classList.toggle('hidden', !players.some(p => p.canGrab && !p.grabbing));
+    updateHomeActionCards();
   }
 
   function bonk(type) {
@@ -1654,14 +1936,14 @@
   function showDinnerIntro() {
     storyMode = 'dinner';
     $('hud').classList.add('hidden');
-    document.body.classList.remove('kitchen-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode');
     const chef = players[kitchenChefIndex];
     const runner = players[kitchenChefIndex === 0 ? 1 : 0];
-    $('story-kicker').textContent = 'LEVEL TWO · 11:54 PM · KITCHEN';
+    $('story-kicker').textContent = 'CHAPTER TWO · DINNER DATE';
     $('story-speaker').textContent = 'Dr. Fluffles';
     $('story-title').textContent = 'Dinner Date From Hell';
-    $('story-text').textContent = `${chef.name} is the CHEF: stay near the pot, add delivered ingredients, stir, and control the stove. ${runner.name} is the RUNNER: fetch one ingredient at a time. Vegetables must be washed at the sink, chopped on the board, then delivered to the prep tray. ${chef.name} is the CHEF: use close-up pouring/tipping tasks to get ingredients into the pot, then cook and stir. Once pasta is in, the next ingredient becomes urgent.`;
-    $('story-progress').textContent = 'LEVEL 2 / 2 · CLEAR ROLES';
+    $('story-text').textContent = `${chef.name} is the CHEF: add delivered ingredients, stir, and control the stove. ${runner.name} is the RUNNER: fetch ingredients, wash vegetables, chop them, and bring them to the prep tray. Preparation has no countdown. The only pressure begins after you deliberately turn the stove on.`;
+    $('story-progress').textContent = 'CHAPTER 2 / 3 · COOK TOGETHER';
     $('story-next').textContent = 'ENTER THE KITCHEN ♥';
     $('story-skip-level').classList.remove('hidden');
     $('story-screen').classList.add('active');
@@ -1675,6 +1957,7 @@
     dinnerStartTime = performance.now();
     $('story-skip-level').classList.add('hidden');
     setupDinnerScene();
+    $('chapter-hud').textContent='CHAPTER 2 · DINNER DATE';
     configureDinnerHUD();
     $('hud').classList.remove('hidden');
     $('kitchen-status').classList.remove('hidden');
@@ -1686,6 +1969,7 @@
     toast(`${runner.name}: FIND PASTA → PREP TRAY. ${chef.name}: WAIT AT THE POT.`);
     beep(520, 0.06, 0.04);
     setTimeout(() => beep(720, 0.08, 0.035), 90);
+    showChapterBanner('CHAPTER TWO','Dinner Date From Hell');
   }
 
   function setupDinnerScene() {
@@ -1706,6 +1990,7 @@
     world.vase = null;
     world.arrange = null;
     world.dinner = null;
+    world.rain = null;
     world.bounds = { minX: -9.45, maxX: 9.45, minZ: -5.45, maxZ: 5.45 };
 
     buildKitchenWorld();
@@ -1729,8 +2014,26 @@
     });
 
     applyKitchenRolePresentation();
-    camera.position.set(0, 12.4, 13.35);
-    camera.lookAt(0, 0.45, -0.75);
+    camera.position.set(.8, 8.4, 10.6);
+    camera.lookAt(0, .62, -1.0);
+  }
+
+  function clearKitchenRolePresentation() {
+    players.forEach((p, i) => {
+      const badge = p.group?.userData?.roleBadge;
+      if (badge) {
+        p.group.remove(badge);
+        p.group.userData.roleBadge = null;
+      }
+      if (p.group?.userData?.apron) p.group.userData.apron.visible = false;
+      if (p.group?.userData?.chefHat) p.group.userData.chefHat.visible = false;
+      if (p.group?.userData?.runnerBand) p.group.userData.runnerBand.visible = false;
+      const label = $(`p${i + 1}-label`);
+      if (label) {
+        label.textContent = p.name.toUpperCase();
+        label.classList.remove('role-chef', 'role-runner');
+      }
+    });
   }
 
   function applyKitchenRolePresentation() {
@@ -2320,7 +2623,7 @@
       progress: 0,
       marker: 0.12,
       dir: 1,
-      holding: false,
+      holding: type !== 'chop',
       hits: 0,
       misses: 0
     };
@@ -2343,11 +2646,15 @@
       mini.progress = clamp(mini.progress + (good ? 22 : 10), 0, 100);
       if (good) {
         mini.hits += 1;
+        mini.feedback = mini.hits >= 3 ? 'Beautiful rhythm ✦' : 'Nice cut!';
+        navigator.vibrate?.(18);
         beep(650 + mini.hits * 35, 0.035, 0.022);
       } else {
         mini.misses += 1;
-        players[playerIndex].patience = clamp(players[playerIndex].patience - 1.2, 0, 100);
-        chaos += 0.5;
+        mini.feedback = 'Close — aim for green';
+        players[playerIndex].patience = clamp(players[playerIndex].patience - 0.55, 0, 100);
+        chaos += 0.2;
+        navigator.vibrate?.([10,18,10]);
         beep(170, 0.04, 0.02);
       }
       if (mini.progress >= 100) finishKitchenMini();
@@ -2369,15 +2676,17 @@
 
     if (mini.type === 'wash' && mini.holding) {
       mini.progress = clamp(mini.progress + dt * 43, 0, 100);
+      mini.feedback = mini.progress > 70 ? 'Almost sparkling ✦' : 'Rinsing…';
       if (Math.floor(mini.progress) % 18 === 0) spawnBonkParticles(new THREE.Vector3(d.sinkPos.x, 1.3, -4.1), 1);
-    }
+    } else if (mini.type === 'wash') mini.feedback = 'Hold to rinse';
     if (mini.type === 'pour' && mini.holding) {
       const steady = mini.marker >= 0.2 && mini.marker <= 0.8;
       mini.progress = clamp(mini.progress + dt * (steady ? 37 : 22), 0, 100);
       if (!steady) {
-        chaos += dt * 0.35;
-        players[mini.playerIndex].patience = clamp(players[mini.playerIndex].patience - dt * 0.14, 0, 100);
-      }
+        mini.feedback = 'Tiny spill — steady it';
+        chaos += dt * 0.2;
+        players[mini.playerIndex].patience = clamp(players[mini.playerIndex].patience - dt * 0.07, 0, 100);
+      } else mini.feedback = mini.progress > 65 ? 'Clean pour ✦' : 'Steady…';
     }
     if (mini.progress >= 100) finishKitchenMini();
     updateKitchenMiniUI();
@@ -2409,8 +2718,21 @@
       toast(`${item.name.toUpperCase()} successfully transferred. Very little is on the floor.`);
       finalizeIngredientToPot(player, item);
     }
+    flashTaskSuccess(type === 'wash' ? 'Sparkling clean ✦' : type === 'chop' ? 'Nicely chopped ✦' : 'Clean transfer ✦');
     updateKitchenMiniUI();
     updateKitchenHUD();
+  }
+
+  function flashTaskSuccess(text = 'Done ✦') {
+    taskFlashUntil = performance.now() + 520;
+    const panel=$('kitchen-task-screen'), visual=$('task-visual'), feedback=$('task-feedback');
+    panel?.classList.remove('hidden');
+    visual?.classList.add('task-success');
+    if(feedback){feedback.textContent=text;feedback.classList.add('good');feedback.classList.remove('miss');}
+    if($('task-progress-fill'))$('task-progress-fill').style.width='100%';
+    if($('task-progress-text'))$('task-progress-text').textContent='100%';
+    if($('task-control'))$('task-control').textContent='DONE ♥';
+    setTimeout(()=>visual?.classList.remove('task-success'),650);
   }
 
   function updateKitchenMiniUI() {
@@ -2419,6 +2741,7 @@
     const d = world.dinner;
     const mini = d?.mini;
     if (!mini?.active) {
+      if(performance.now()<taskFlashUntil){panel.classList.remove('hidden');return;}
       panel.classList.add('hidden');
       panel.classList.remove('active-player', 'spectator');
       return;
@@ -2446,6 +2769,22 @@
     $('task-title').textContent = titles[mini.type] || 'Kitchen task';
     $('task-subtitle').textContent = subtitles[mini.type] || '';
     $('task-emoji').textContent = emoji;
+    const taskVisual = $('task-visual');
+    if (taskVisual) {
+      taskVisual.dataset.taskType = mini.type;
+      taskVisual.classList.remove('task-success');
+    }
+    const prop = $('task-prop');
+    if (prop) {
+      const colors = { tomato:'#dc655e', onion:'#a87bc6', pasta:'#d9b66f' };
+      prop.style.background = colors[mini.itemName] || '#dc655e';
+    }
+    const feedback = $('task-feedback');
+    if (feedback) {
+      feedback.textContent = mini.feedback || (mini.type === 'chop' ? 'Hit the green zone' : mini.type === 'wash' ? 'Hold to rinse' : 'Keep it steady');
+      feedback.classList.toggle('good', /Nice|Beautiful|Clean|sparkling|Almost/i.test(feedback.textContent));
+      feedback.classList.toggle('miss', /Close|spill/i.test(feedback.textContent));
+    }
     $('task-progress-fill').style.width = `${clamp(mini.progress, 0, 100)}%`;
     $('task-progress-text').textContent = `${Math.round(mini.progress)}%`;
     $('task-marker').style.left = `${clamp(mini.marker, 0, 1) * 100}%`;
@@ -2458,7 +2797,7 @@
       : 'You can keep moving and handle your own kitchen responsibilities.';
   }
 
-  // v1.4: ingredient prep is intentionally untimed. These fields stay reset
+  // v2.0: ingredient prep is intentionally untimed. These fields stay reset
   // only so old online snapshots cannot accidentally re-enable the former countdown.
   function clearDinnerUrgency() {
     const d = world.dinner;
@@ -2711,10 +3050,10 @@
     const d = world.dinner;
     for (let i = 0; i < 24; i++) spawnBonkParticles(d.tablePos.clone().setY(1.0), 1);
     toast('DINNER DATE SURVIVED. BOTH PLATES HAVE LEGAL STATUS AS FOOD.');
-    setFluffles('Two physical trials passed. I regret to inform you that I now have questions.');
+    setFluffles('Dinner survived. Put the smoke alarm down. We are attempting one calm thing next: movie night.');
     beep(660, 0.1, 0.05);
     setTimeout(() => beep(880, 0.12, 0.045), 100);
-    scheduleNetworkFlow('startPartnerQuiz', 1100);
+    scheduleNetworkFlow('showRainIntro', 1100);
   }
 
   function updateDinner(dt) {
@@ -2740,7 +3079,7 @@
     }
 
     const active = activeDinnerIngredient(d);
-    // Ingredient prep is untimed in v1.4. Cooking danger begins only after the stove is on.
+    // Ingredient prep is untimed in v2.0. Cooking danger begins only after the stove is on.
     clearDinnerUrgency();
 
     if (d.stoveOn && !d.fire && !d.mealReady) {
@@ -2825,13 +3164,378 @@
     }
   }
 
+
+  // =============================================================
+  // CHAPTER THREE — MOVIE NIGHT MAYHEM
+  // Internal route id remains "rain" for multiplayer compatibility, but
+  // the old tea ritual has been fully replaced by a tactile movie-night level.
+  // =============================================================
+
+  function showRainIntro() {
+    storyMode='rain';
+    $('hud').classList.add('hidden');
+    document.body.classList.remove('kitchen-mode');
+    document.body.classList.add('rain-mode');
+    $('story-kicker').textContent='CHAPTER THREE · MOVIE NIGHT';
+    $('story-speaker').textContent='Narrator';
+    $('story-title').textContent='One sofa. One remote. Zero agreement on the movie.';
+    $('story-text').textContent='Dinner is over. Build the perfect movie night together: warm the room, search the sofa for the missing remote, turn on the TV, choose tonight’s questionable masterpiece, make popcorn, carry it over, claim the blanket, and sit down together. No timer. Just cozy teamwork and Kevin-related obstruction.';
+    $('story-progress').textContent='CHAPTER 3 / 3 · UNWIND';
+    $('story-next').textContent='START MOVIE NIGHT 🍿';
+    $('story-skip-level').classList.remove('hidden');
+    $('story-screen').classList.add('active');
+  }
+
+  function makeRainBeacon(label, pos, color=0xf0c879) {
+    const g=new THREE.Group();
+    const ring=mesh(new THREE.TorusGeometry(.48,.045,8,28),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.65,roughness:.55,transparent:true,opacity:.74}),false,false);
+    ring.rotation.x=Math.PI/2; ring.position.y=.05; g.add(ring);
+    const glow=mesh(new THREE.CylinderGeometry(.18,.42,.055,22),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.16}),false,false);glow.position.y=.04;g.add(glow);
+    const tag=makeTextSprite(label,'rgba(54,38,33,.88)','#fff5dc');tag.position.set(0,1.15,0);tag.scale.multiplyScalar(.3);g.add(tag);
+    g.position.copy(pos); g.userData.baseY=pos.y; g.userData.ring=ring; g.userData.tag=tag; scene.add(g);
+    return g;
+  }
+
+  function makeMovieRemote() {
+    const g=new THREE.Group();
+    const body=mesh(new THREE.BoxGeometry(.18,.055,.48),mat(0x34313b,.48,.16),false,false);body.position.y=.04;g.add(body);
+    const power=mesh(new THREE.CylinderGeometry(.025,.025,.012,10),mat(0xe76f7e,.5,.05),false,false);power.rotation.x=Math.PI/2;power.position.set(0,.075,-.17);g.add(power);
+    for(let i=0;i<5;i++){const b=mesh(new THREE.CylinderGeometry(.018,.018,.012,8),mat(i===2?0xf0c879:0xa9adb5,.6),false,false);b.rotation.x=Math.PI/2;b.position.set((i%2?-.045:.045),.075,-.07+Math.floor(i/2)*.08);g.add(b);}
+    return g;
+  }
+
+  function makePopcornBowl() {
+    const g=new THREE.Group();
+    const bowl=mesh(new THREE.CylinderGeometry(.34,.24,.25,20,1,true),mat(0xd98294,.72),false,false);bowl.position.y=.14;g.add(bowl);
+    const rim=mesh(new THREE.TorusGeometry(.34,.025,7,22),mat(0xf6d5dc,.5),false,false);rim.rotation.x=Math.PI/2;rim.position.y=.265;g.add(rim);
+    return g;
+  }
+
+  function spawnMoviePopcorn() {
+    const r=world.rain;if(!r||r.popcornPieces.length)return;
+    for(let i=0;i<18;i++){
+      const p=mesh(new THREE.SphereGeometry(.055+(i%3)*.006,7,6),mat(i%4===0?0xf2cf79:0xfff2c4,.92),false,false);
+      const a=i*.91,rad=.05+(i%5)*.045;p.position.set(Math.cos(a)*rad,.29+(i%4)*.035,Math.sin(a)*rad);r.popcornBowl.add(p);r.popcornPieces.push(p);
+    }
+  }
+
+  function buildRainWorld() {
+    const floor=mesh(new THREE.BoxGeometry(20,.2,13),mat(0x7e5c47,.96),false,true);floor.position.y=-.12;scene.add(floor);
+    for(let x=-9.5;x<=9.5;x+=1.1){const seam=mesh(new THREE.BoxGeometry(.018,.01,12.5),mat(0x694735,.98),false,true);seam.position.set(x,-.015,0);scene.add(seam);}
+    const wallMat=mat(0xe9dfd3,.96);
+    for(const [x,z,w,d] of [[0,-6.45,20,.22],[-9.88,0,.22,13],[9.88,0,.22,13]]){const wall=mesh(new THREE.BoxGeometry(w,3.4,d),wallMat);wall.position.set(x,1.66,z);scene.add(wall);}
+    const rug=mesh(new THREE.BoxGeometry(8.6,.04,4.8),mat(0x78616d,.98),false,true);rug.position.set(2.2,.01,1.9);scene.add(rug);
+
+    // Living room: sofa faces the television, with a coffee table in between.
+    const sofa=makeSofa();sofa.scale.setScalar(1.12);sofa.position.set(4.1,.53,2.2);sofa.rotation.y=0;scene.add(sofa);
+    world.colliders.push({x:4.1,z:2.2,hx:2.2,hz:.72,name:'movie-sofa'});
+    const table=mesh(new THREE.CylinderGeometry(.82,.82,.14,24),mat(0x9a6f53,.9));table.position.set(1.55,.62,1.15);scene.add(table);
+    const tableLeg=mesh(new THREE.CylinderGeometry(.13,.18,.6,12),mat(0x75513e,.9));tableLeg.position.set(1.55,.3,1.15);scene.add(tableLeg);
+    const tableRim=mesh(new THREE.TorusGeometry(.80,.035,8,28),mat(0xe9bd76,.45,.08),false,false);tableRim.rotation.x=Math.PI/2;tableRim.position.set(1.55,.71,1.15);scene.add(tableRim);
+
+    const lamp=new THREE.Group();
+    const pole=mesh(new THREE.CylinderGeometry(.045,.055,1.8,10),mat(0x6c625d,.4,.2));pole.position.y=.9;lamp.add(pole);
+    const shade=mesh(new THREE.ConeGeometry(.52,.68,20,1,true),mat(0xc99477,.82));shade.position.y=1.85;lamp.add(shade);
+    const pull=mesh(new THREE.CylinderGeometry(.016,.016,.42,7),mat(0x6a544b,.75));pull.position.set(.35,1.56,0);lamp.add(pull);
+    const pullBead=mesh(new THREE.SphereGeometry(.055,8,6),mat(0xe9bd76,.6,.08));pullBead.position.set(.35,1.34,0);lamp.add(pullBead);
+    lamp.position.set(8.1,0,-2.3);scene.add(lamp);
+    const lampLight=new THREE.PointLight(0xffc58c,0,11,2);lampLight.position.set(8.1,2.1,-2.3);scene.add(lampLight);
+
+    // Television wall / media console.
+    const consoleBody=mesh(new THREE.BoxGeometry(4.6,.66,.72),mat(0x82624f,.9));consoleBody.position.set(3.5,.34,-5.72);scene.add(consoleBody);
+    const consoleTop=mesh(new THREE.BoxGeometry(4.8,.09,.82),mat(0xb18468,.82));consoleTop.position.set(3.5,.72,-5.72);scene.add(consoleTop);
+    const tvFrame=mesh(new THREE.BoxGeometry(4.15,2.28,.18),mat(0x292a31,.36,.18));tvFrame.position.set(3.5,2.0,-5.93);scene.add(tvFrame);
+    const tvMat=new THREE.MeshStandardMaterial({color:0x171b29,roughness:.3,metalness:.08,emissive:0x0c1018,emissiveIntensity:.25});
+    const tvScreen=mesh(new THREE.BoxGeometry(3.78,1.91,.045),tvMat,false,false);tvScreen.position.set(3.5,2.0,-5.81);scene.add(tvScreen);
+    const tvGlow=new THREE.PointLight(0x8fa9d8,0,8,2);tvGlow.position.set(3.5,2.0,-4.9);scene.add(tvGlow);
+    const tvLabel=makeTextSprite('MOVIE NIGHT','rgba(22,24,34,.8)','#dbe7ff');tvLabel.position.set(3.5,2.0,-5.72);tvLabel.scale.set(1.2,.32,1);tvLabel.visible=false;scene.add(tvLabel);
+
+    // Movie posters make the room feel intentional instead of empty.
+    const posterData=[[-6.9,1.95,0xd98294,'♥'],[-5.55,1.95,0x829bc2,'★'],[-4.2,1.95,0x9aa77c,'?']];
+    for(const [x,y,c,t] of posterData){const frame=mesh(new THREE.BoxGeometry(1.0,1.42,.06),mat(0x4a352f,.75),false,false);frame.position.set(x,y,-6.28);scene.add(frame);const art=mesh(new THREE.BoxGeometry(.86,1.27,.025),mat(c,.82),false,false);art.position.set(x,y,-6.23);scene.add(art);const lbl=makeTextSprite(t,'transparent','#fff4e5');lbl.position.set(x,y,-6.18);lbl.scale.set(.3,.3,1);scene.add(lbl);}
+
+    // Popcorn station on the opposite wall.
+    const snackCounter=mesh(new THREE.BoxGeometry(4.8,.82,1.0),mat(0xd7c8b8,.93));snackCounter.position.set(-6.3,.42,-4.7);scene.add(snackCounter);world.colliders.push({x:-6.3,z:-4.7,hx:2.4,hz:.5,name:'movie-snack-counter'});
+    const snackTop=mesh(new THREE.BoxGeometry(5.0,.12,1.15),mat(0x8c7162,.82));snackTop.position.set(-6.3,.9,-4.7);scene.add(snackTop);
+    const popper=new THREE.Group();
+    const popBase=mesh(new THREE.BoxGeometry(.85,.64,.72),mat(0xe3a7b3,.7),false,false);popBase.position.y=.32;popper.add(popBase);
+    const popWindow=mesh(new THREE.BoxGeometry(.58,.44,.05),new THREE.MeshStandardMaterial({color:0xffeab3,roughness:.28,transparent:true,opacity:.72,emissive:0x5d431e,emissiveIntensity:.12}),false,false);popWindow.position.set(0,.39,.385);popper.add(popWindow);
+    const popTop=mesh(new THREE.BoxGeometry(.92,.12,.79),mat(0xf0c879,.55,.06),false,false);popTop.position.y=.7;popper.add(popTop);
+    popper.position.set(-7.2,1.02,-4.7);scene.add(popper);
+    const kernelTin=mesh(new THREE.CylinderGeometry(.23,.23,.42,16),mat(0x8ca886,.72),false,false);kernelTin.position.set(-6.05,1.23,-4.7);scene.add(kernelTin);
+    const popcornBowl=makePopcornBowl();popcornBowl.position.set(-5.1,1.02,-4.7);scene.add(popcornBowl);
+    const popcornItem={name:'POPCORN',group:popcornBowl,state:'counter',heldBy:null};
+
+    // Remote is intentionally hidden until the sofa-search interaction succeeds.
+    const remote=makeMovieRemote();remote.position.set(4.2,.93,2.05);remote.rotation.y=.35;remote.visible=false;scene.add(remote);
+    const remoteItem={name:'REMOTE',group:remote,state:'hidden',heldBy:null};
+
+    const blanket=mesh(new THREE.BoxGeometry(1.25,.12,1.65),mat(0xb98f9d,.98));blanket.position.set(-1.2,.08,4.2);blanket.rotation.y=.18;scene.add(blanket);
+    const blanketItem={name:'BLANKET',group:blanket,state:'floor',heldBy:null};
+
+    // Rain remains only as ambient window dressing — this is no longer a tea level.
+    const window=mesh(new THREE.BoxGeometry(6.6,2.2,.1),mat(0x364b61,.5),false,false);window.position.set(-1.0,2.05,-6.3);scene.add(window);
+    const rainDrops=[];for(let i=0;i<56;i++){const drop=mesh(new THREE.BoxGeometry(.018,.22,.018),new THREE.MeshBasicMaterial({color:0x9bb8d3,transparent:true,opacity:.38}),false,false);drop.position.set(-4.1+Math.random()*6.2,.9+Math.random()*2.6,-6.18);scene.add(drop);rainDrops.push(drop);}
+    const moon=new THREE.PointLight(0x8ba5c2,5,12,2);moon.position.set(-1.0,3,-5.3);scene.add(moon);
+
+    const fairy=[];for(let i=0;i<10;i++){const bulb=mesh(new THREE.SphereGeometry(.055,8,6),new THREE.MeshBasicMaterial({color:i%2?0xffd98a:0xf3a8bd}),false,false);bulb.position.set(-8.2+i*1.55,3.0,-6.12);scene.add(bulb);fairy.push(bulb);}
+    const cat=makeCat();cat.group.position.set(7.1,0,4.15);cat.group.rotation.y=-.8;scene.add(cat.group);
+
+    const beacons={
+      lamp:makeRainBeacon('WARM LIGHT',new THREE.Vector3(8.1,.02,-2.3),0xf0c879),
+      sofa:makeRainBeacon('SEARCH SOFA',new THREE.Vector3(4.1,.02,1.5),0xf3a8bd),
+      remote:makeRainBeacon('REMOTE',new THREE.Vector3(4.2,.02,1.55),0xe9bd76),
+      tv:makeRainBeacon('TV',new THREE.Vector3(3.5,.02,-4.95),0x9fbce8),
+      movie:makeRainBeacon('PICK A MOVIE',new THREE.Vector3(3.5,.02,-4.95),0xd7a4e8),
+      popcorn:makeRainBeacon('MAKE POPCORN',new THREE.Vector3(-7.2,.02,-4.12),0xf0c879),
+      table:makeRainBeacon('SNACKS HERE',new THREE.Vector3(1.55,.02,.55),0xf0c879),
+      blanket:makeRainBeacon('BLANKET',new THREE.Vector3(-1.2,.02,4.2),0xd9a1ad),
+      cozy:makeRainBeacon('GET COZY',new THREE.Vector3(4.1,.02,1.55),0xf3a8bd)
+    };
+
+    world.rain={
+      stage:0,lamp,lampLight,lampOn:false,
+      sofa,sofaPos:new THREE.Vector3(4.1,0,2.2),searchDone:false,
+      remote,remoteItem,remoteFound:false,
+      tvScreen,tvMat,tvGlow,tvLabel,tvOn:false,movieChosen:null,
+      popper,kernelTin,popcornBowl,popcornItem,popcornReady:false,popcornPlaced:false,popcornPieces:[],
+      table,tablePos:new THREE.Vector3(1.55,0,1.15),
+      blanket,blanketItem,blanketPlaced:false,sitReady:new Set(),
+      mini:null,rainDrops,fairy,cat,catPhase:0,catCalm:0,
+      windowPos:new THREE.Vector3(-1.0,0,-5.72),fairyOn:true,
+      // Kept for the generic mini-cancel code used by the legacy internal route.
+      waterStream:{visible:false},
+      beacons
+    };
+  }
+
+  function setupRainScene() {
+    const preserved=players.map(p=>p.patience);
+    clearKitchenRolePresentation();
+    scene=new THREE.Scene();scene.background=new THREE.Color(0x19202c);scene.fog=new THREE.Fog(0x19202c,21,43);
+    world.colliders=[];world.particles=[];world.sofa=null;world.goalRing=null;world.goalHeart=null;world.rug=null;world.door=null;world.cat=null;world.vase=null;world.arrange=null;world.dinner=null;world.rain=null;
+    world.bounds={minX:-9.35,maxX:9.35,minZ:-5.95,maxZ:5.95};buildRainWorld();
+    scene.add(new THREE.HemisphereLight(0xd5e0ed,0x2d2831,1.0));const warm=new THREE.DirectionalLight(0xffdfc5,1.1);warm.position.set(-4,8,5);warm.castShadow=true;scene.add(warm);
+    // Spawn inside the living-room composition instead of at the far edge of the map.
+    // This immediately communicates that this is a new chapter, not the previous Home scene.
+    const starts=[new THREE.Vector3(.15,0,3.8),new THREE.Vector3(1.35,0,3.8)];
+    players.forEach((p,i)=>{p.start.copy(starts[i]);p.group.position.copy(starts[i]);p.velocity.set(0,0,0);p.heldItem=null;p.rainHeldItem=null;p.canGrab=false;p.patience=clamp(preserved[i]+12,0,100);scene.add(p.group);updatePlayerFace(p);});
+    cameraShake = 0;
+    cameraFocusLevel = '';
+    camera.position.set(3.1,8.0,11.8);camera.lookAt(2.4,.72,-.6);
+  }
+
+  function configureRainHUD() {
+    $('chapter-hud').textContent='CHAPTER 3 · MOVIE NIGHT MAYHEM';
+    const track=$('crisis-track');track.classList.remove('home-track');
+    track.innerHTML=[['1','Warm Light'],['2','Find Remote'],['3','TV On'],['4','Pick Movie'],['5','Popcorn'],['6','Serve Snack'],['7','Blanket'],['8','Get Cozy']].map((x,i)=>`<div class="crisis-step${i===0?' active':''}" data-step="${i}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+    $('kitchen-status').classList.add('hidden');
+    $('action-prompts').classList.remove('hidden');
+    updateRainHUD();
+  }
+
+  function rainActionText(action) {
+    if(!action) return 'Explore the room. Movie night contains several suspiciously touchable objects.';
+    const map={lamp:'Turn on the cozy floor lamp',searchsofa:'Search between the sofa cushions',pickremote:'Pick up the remote',turntv:'Carry remote to TV and switch it on',movie:'Choose tonight’s movie',popcorn:'Make a bowl of popcorn',pickpopcorn:'Pick up the popcorn bowl',placepopcorn:'Put popcorn on the coffee table',pickblanket:'Pick up the blanket',placeblanket:'Drape blanket over the sofa',sitready:'Sit down together',dropmovie:'Put it down',petcat:'Pet Kevin',fairy:'Toggle fairy lights',window:'Watch the rain for a second'};
+    return map[action.type]||action.text||'Interact';
+  }
+
+  function updateRainHUD() {
+    const r=world.rain;if(!r)return;
+    document.querySelectorAll('.crisis-step').forEach((el,i)=>{el.classList.toggle('active',i===r.stage);el.classList.toggle('done',i<r.stage);});
+    $('crisis-count').textContent=`${Math.min(r.stage+1,8)}/8`;
+    if(r.stage===0)$('objective').textContent='Turn on the floor lamp and give the room proper movie-night lighting.';
+    if(r.stage===1)$('objective').textContent='The remote is missing. Search the sofa cushions together before Kevin claims legal ownership.';
+    if(r.stage===2)$('objective').textContent=r.remoteItem.state==='held'?'Carry the remote to the TV and switch it on.':'Pick up the remote you found in the sofa.';
+    if(r.stage===3)$('objective').textContent='Use the TV to choose tonight’s movie. Hold interact and let fate pick the genre.';
+    if(r.stage===4)$('objective').textContent='Make popcorn at the pink popcorn machine. Hold interact until the bowl is gloriously irresponsible.';
+    if(r.stage===5)$('objective').textContent=r.popcornItem.state==='held'?'Carry the popcorn to the coffee table.':'Pick up the popcorn bowl and bring it to the sofa area.';
+    if(r.stage===6)$('objective').textContent=!r.blanketPlaced?'Bring the blanket to the sofa.':'Blanket deployed. One final task remains.';
+    if(r.stage===7)$('objective').textContent=`Both of you come to the sofa and press interact. Ready: ${r.sitReady.size}/2.`;
+
+    const pulse=.92+Math.sin(elapsed*4)*.08;
+    const show={lamp:r.stage===0,sofa:r.stage===1,remote:r.stage===2&&r.remoteItem.state!=='held',tv:r.stage===2&&r.remoteItem.state==='held',movie:r.stage===3,popcorn:r.stage===4||(r.stage===5&&r.popcornItem.state!=='held'),table:r.stage===5&&r.popcornItem.state==='held',blanket:r.stage===6&&!r.blanketPlaced,cozy:r.stage===7};
+    if(r.beacons?.remote&&r.remoteFound){r.beacons.remote.position.x=r.remote.position.x;r.beacons.remote.position.z=r.remote.position.z;}
+    if(r.beacons?.popcorn&&r.stage===5){r.beacons.popcorn.position.x=r.popcornBowl.position.x;r.beacons.popcorn.position.z=r.popcornBowl.position.z;r.beacons.popcorn.userData.tag.visible=true;}
+    for(const [k,b] of Object.entries(r.beacons||{})){b.visible=!!show[k];if(b.visible){b.position.y=b.userData.baseY+Math.sin(elapsed*3+k.length)*.04;b.userData.ring?.scale.setScalar(pulse);}}
+
+    players.forEach((p,i)=>{
+      const action=nearestRainAction(p);
+      const card=$(`p${i+1}-action-card`), text=$(`p${i+1}-action-text`), name=$(`p${i+1}-action-name`);
+      if(!card)return;
+      card.classList.remove('hidden');name.textContent=`${p.name.toUpperCase()} · MOVIE DUTY`;text.textContent=rainActionText(action);card.classList.toggle('ready-action',!!action);
+    });
+    updateRainMiniUI();
+  }
+
+  function startRainTrial() {
+    currentLevel='rain';won=false;gameStarted=true;rainTime=0;elapsed=0;
+    document.body.classList.remove('kitchen-mode');document.body.classList.add('rain-mode');
+    $('story-skip-level').classList.add('hidden');$('story-screen').classList.remove('active');setupRainScene();configureRainHUD();$('hud').classList.remove('hidden');
+    setFluffles('Movie night. A controlled environment for discovering whether two adults can share one remote.');
+    toast('MOVIE NIGHT: LIGHTS → FIND REMOTE → TV → MOVIE → POPCORN → BLANKET → SOFA.');
+    showChapterBanner('CHAPTER THREE','Movie Night Mayhem');
+  }
+
+  function nearestRainAction(player) {
+    const r=world.rain;if(!r)return null;
+    const idx=players.indexOf(player);
+    if(r.mini?.active&&r.mini.playerIndex===idx)return null;
+    if(player.rainHeldItem){
+      const item=player.rainHeldItem;
+      if(item===r.remoteItem&&r.stage===2&&distanceXZ(player.group.position,new THREE.Vector3(3.5,0,-4.9))<2.1)return {type:'turntv',item};
+      if(item===r.popcornItem&&r.stage===5&&distanceXZ(player.group.position,r.tablePos)<2.0)return {type:'placepopcorn',item};
+      if(item===r.blanketItem&&r.stage===6&&distanceXZ(player.group.position,r.sofaPos)<2.25)return {type:'placeblanket',item};
+      return {type:'dropmovie',item};
+    }
+    if(r.stage===0&&distanceXZ(player.group.position,r.lamp.position)<1.9)return {type:'lamp'};
+    if(r.stage===1&&distanceXZ(player.group.position,r.sofaPos)<2.45)return {type:'searchsofa'};
+    if(r.stage===2&&r.remoteFound&&r.remoteItem.state!=='held'&&distanceXZ(player.group.position,r.remote.position)<1.65)return {type:'pickremote',item:r.remoteItem};
+    if(r.stage===3&&distanceXZ(player.group.position,new THREE.Vector3(3.5,0,-4.9))<2.0)return {type:'movie'};
+    if(r.stage===4&&!r.popcornReady&&distanceXZ(player.group.position,r.popper.position)<1.9)return {type:'popcorn'};
+    if(r.stage===5&&r.popcornReady&&r.popcornItem.state!=='held'&&!r.popcornPlaced&&distanceXZ(player.group.position,r.popcornBowl.position)<1.8)return {type:'pickpopcorn',item:r.popcornItem};
+    if(r.stage===6&&!r.blanketPlaced&&r.blanketItem.state!=='held'&&distanceXZ(player.group.position,r.blanket.position)<2.25)return {type:'pickblanket',item:r.blanketItem};
+    if(r.stage===7&&distanceXZ(player.group.position,r.sofaPos)<2.3)return {type:'sitready'};
+
+    // Optional low-stakes interactions never block progression.
+    if(distanceXZ(player.group.position,r.cat.group.position)<1.3)return {type:'petcat'};
+    if(distanceXZ(player.group.position,new THREE.Vector3(-1.0,0,-5.72))<1.65)return {type:'window'};
+    if(distanceXZ(player.group.position,new THREE.Vector3(-1.9,0,-5.5))<1.35)return {type:'fairy'};
+    return null;
+  }
+
+  function rainInteract(player) {
+    const r=world.rain,action=nearestRainAction(player);if(!r||!action)return;
+    if(action.type==='lamp'){
+      r.lampOn=true;r.lampLight.intensity=12;r.stage=1;beep(620,.06,.025);spawnBonkParticles(r.lamp.position.clone().setY(1.8),6);
+      setFluffles('Warm lighting. Excellent. The furniture is now emotionally available.');toast('LIGHTS ON. FIND THE REMOTE.');updateRainHUD();
+    } else if(action.type==='searchsofa') startRainMini('movie-search',player,'SOFA');
+    else if(action.type==='pickremote'){
+      player.rainHeldItem=r.remoteItem;r.remoteItem.heldBy=player;r.remoteItem.state='held';beep(520,.04,.02);toast(`${player.name} recovered the sacred remote.`);
+    } else if(action.type==='turntv'){
+      const item=action.item;item.heldBy=null;item.state='console';player.rainHeldItem=null;r.remote.position.set(4.75,.81,-5.55);r.remote.rotation.set(0,.1,0);r.tvOn=true;r.tvGlow.intensity=5.8;r.tvMat.color.setHex(0x6079a9);r.tvMat.emissive.setHex(0x21345d);r.tvMat.emissiveIntensity=.9;r.tvLabel.visible=true;r.stage=3;beep(510,.05,.025);setTimeout(()=>beep(740,.06,.02),70);toast('TV ON. NOW MAKE THE IMPOSSIBLE DECISION.');setFluffles('The television is on. Negotiations may now deteriorate.');updateRainHUD();
+    } else if(action.type==='movie') startRainMini('movie-pick',player,'MOVIE');
+    else if(action.type==='popcorn') startRainMini('movie-popcorn',player,'POPCORN');
+    else if(action.type==='pickpopcorn'||action.type==='pickblanket'){
+      player.rainHeldItem=action.item;action.item.heldBy=player;action.item.state='held';beep(500,.04,.02);
+    } else if(action.type==='dropmovie'){
+      const item=action.item;item.heldBy=null;item.state='floor';player.rainHeldItem=null;const target=player.group.position.clone().addScaledVector(player.facing,.72);item.group.position.set(target.x,(item===r.blanketItem ? .08 : item===r.remoteItem ? .10 : .18),target.z);beep(220,.035,.018);
+    } else if(action.type==='placepopcorn'){
+      const item=action.item;item.heldBy=null;item.state='placed';player.rainHeldItem=null;r.popcornPlaced=true;r.popcornBowl.position.set(r.tablePos.x,.78,r.tablePos.z);r.stage=6;beep(720,.06,.026);spawnBonkParticles(r.popcornBowl.position.clone().setY(1),6);toast('POPCORN DELIVERED. BLANKET NEXT.');setFluffles('Snack logistics complete. I have seen supply chains with less discipline.');updateRainHUD();
+    } else if(action.type==='placeblanket'){
+      const item=action.item;item.heldBy=null;item.state='placed';player.rainHeldItem=null;r.blanketPlaced=true;r.blanket.position.set(r.sofaPos.x,.82,r.sofaPos.z+.08);r.blanket.rotation.set(0,0,0);r.blanket.scale.set(1.9,.15,.82);r.stage=7;beep(730,.06,.026);toast('BLANKET READY. BOTH OF YOU → SOFA.');updateRainHUD();
+    } else if(action.type==='sitready'){
+      const idx=players.indexOf(player);r.sitReady.add(idx);beep(560+idx*90,.05,.02);toast(`${player.name} is ready (${r.sitReady.size}/2).`);updateRainHUD();if(r.sitReady.size>=2)setTimeout(finishRainTrial,650);
+    } else if(action.type==='petcat'){
+      r.catCalm=4;spawnBonkParticles(r.cat.group.position.clone().setY(.65),6);beep(760,.045,.018);setFluffles('Kevin has accepted affection without admitting where he put the remote.');toast('KEVIN PURRS. NO CONFESSION.');
+    } else if(action.type==='fairy'){
+      r.fairyOn=!r.fairyOn;r.fairy.forEach(b=>b.visible=r.fairyOn);beep(r.fairyOn?620:330,.06,.018);toast(r.fairyOn?'FAIRY LIGHTS: MAXIMUM COZY.':'FAIRY LIGHTS OFF. CINEMA MODE.');
+    } else if(action.type==='window'){
+      beep(440,.05,.012);setFluffles('A brief rain-watching intermission. No objective completed. Somehow still worthwhile.');toast('A SMALL QUIET MOMENT ♥');
+    }
+  }
+
+  function startRainMini(type,player,itemName) {
+    const r=world.rain;if(!r||r.mini?.active)return;
+    const playerIndex=players.indexOf(player);
+    const tapTask=type==='movie-search';
+    r.mini={active:true,type,playerIndex,itemName,progress:0,marker:.12+Math.random()*.25,dir:1,holding:!tapTask,hits:0,misses:0,feedback:type==='movie-search'?'Lift three suspicious cushions':type==='movie-pick'?'Poster carousel rolling…':'Popcorn warming up…'};
+    player.velocity.set(0,0,0);
+    if(type==='movie-search')setFluffles('Search the sofa. Historically, remotes migrate toward crumbs and poor decisions.');
+    if(type==='movie-pick')setFluffles('Hold interact while the genres cycle. Release is not required. Fate is doing the choosing.');
+    if(type==='movie-popcorn')setFluffles('Make popcorn. The correct amount is approximately “too much.”');
+    updateRainMiniUI();
+  }
+
+  function handleRainMiniInput(playerIndex,down) {
+    const r=world.rain,mini=r?.mini;if(!mini?.active||mini.playerIndex!==playerIndex)return;
+    const tapTask=mini.type==='movie-search';
+    if(tapTask){
+      if(!down)return;
+      mini.hits++;mini.progress=clamp(mini.hits*34,0,100);mini.feedback=mini.hits>=3?'REMOTE DISCOVERED ✦':`${mini.hits}/3 cushions searched`;navigator.vibrate?.(18);beep(520+mini.hits*70,.04,.022);if(mini.progress>=100)finishRainMini();
+    } else mini.holding=!!down;
+    updateRainMiniUI();
+  }
+
+  function updateRainMini(dt) {
+    const r=world.rain,mini=r?.mini;if(!mini?.active){updateRainMiniUI();return;}
+    mini.marker+=mini.dir*dt*(mini.type==='movie-pick'?1.18:.86);if(mini.marker>=1){mini.marker=1;mini.dir=-1;}if(mini.marker<=0){mini.marker=0;mini.dir=1;}
+    if(mini.holding&&mini.type!=='movie-search'){
+      const rates={'movie-pick':37,'movie-popcorn':30};mini.progress=clamp(mini.progress+dt*(rates[mini.type]||34),0,100);
+      if(mini.type==='movie-pick')mini.feedback=mini.progress>72?'Decision becoming legally binding…':'Genres cycling…';
+      if(mini.type==='movie-popcorn')mini.feedback=mini.progress>72?'Almost enough popcorn ✦':'Pop… pop… POP…';
+    }
+    if(mini.progress>=100)finishRainMini();
+    updateRainMiniUI();
+  }
+
+  function finishRainMini() {
+    const r=world.rain,mini=r?.mini;if(!mini?.active)return;
+    const type=mini.type,marker=mini.marker;r.mini=null;navigator.vibrate?.(28);
+    if(type==='movie-search'){
+      r.searchDone=true;r.remoteFound=true;r.remote.visible=true;r.remoteItem.state='sofa';r.stage=2;spawnBonkParticles(r.remote.position.clone().setY(1.15),8);toast('REMOTE FOUND BETWEEN THE CUSHIONS. A MIRACLE.');beep(780,.07,.027);flashTaskSuccess('Remote found ✦');
+    } else if(type==='movie-pick'){
+      const genres=[['ROM-COM',0xd98294,0x5a2035],['MYSTERY',0x829bc2,0x263c68],['CHAOS COMEDY',0xe0ac63,0x62401e]];const pick=genres[Math.min(2,Math.floor(marker*3))];r.movieChosen=pick[0];r.tvMat.color.setHex(pick[1]);r.tvMat.emissive.setHex(pick[2]);r.tvLabel.visible=false;r.stage=4;toast(`${pick[0]} SELECTED. THIS DECISION MAY BE CITED LATER.`);beep(820,.07,.027);flashTaskSuccess(`${pick[0]} selected ✦`);
+    } else if(type==='movie-popcorn'){
+      r.popcornReady=true;spawnMoviePopcorn();r.stage=5;spawnBonkParticles(r.popcornBowl.position.clone().setY(1.35),9);toast('POPCORN READY. CARRY THE BOWL TO THE COFFEE TABLE.');beep(760,.07,.027);flashTaskSuccess('Popcorn ready ✦');
+    }
+    updateRainHUD();
+  }
+
+  function updateRainMiniUI() {
+    const panel=$('kitchen-task-screen');if(!panel)return;
+    const r=world.rain,mini=r?.mini;
+    if(!mini?.active){if(currentLevel==='rain'){if(performance.now()<taskFlashUntil){panel.classList.remove('hidden');return;}panel.classList.add('hidden');panel.classList.remove('active-player','spectator');}return;}
+    panel.classList.remove('hidden');
+    const localIndex=window.NET?.online&&window.NET?.started?window.NET.playerIndex:mini.playerIndex;
+    const activeHere=localIndex===mini.playerIndex;panel.classList.toggle('active-player',activeHere);panel.classList.toggle('spectator',!activeHere);
+    const actor=players[mini.playerIndex]?.name||'Partner';
+    const titles={'movie-search':'Search the sofa','movie-pick':'Choose the movie','movie-popcorn':'Make the popcorn'};
+    const subtitles={'movie-search':'Tap interact three times to lift cushions and hunt for the remote.','movie-pick':'Hold interact while the poster carousel cycles. Whatever it lands on becomes canon.','movie-popcorn':'Hold interact and watch the kernels turn into irresponsible amounts of popcorn.'};
+    const emojis={'movie-search':'🛋️🔎','movie-pick':'📺🎬','movie-popcorn':'🍿♥'};
+    $('task-kicker').textContent=activeHere?`${actor.toUpperCase()} · MOVIE CLOSE-UP`:`${actor.toUpperCase()} IS HANDLING THIS`;
+    $('task-title').textContent=titles[mini.type]||'Movie task';$('task-subtitle').textContent=subtitles[mini.type]||'';$('task-emoji').textContent=emojis[mini.type]||'🎬';
+    const visual=$('task-visual');if(visual)visual.dataset.taskType=mini.type;
+    const feedback=$('task-feedback');if(feedback){feedback.textContent=mini.feedback||'Take your time';feedback.classList.toggle('good',/found|selected|Almost|enough|binding/i.test(feedback.textContent));feedback.classList.toggle('miss',false);}
+    $('task-progress-fill').style.width=`${clamp(mini.progress,0,100)}%`;$('task-progress-text').textContent=`${Math.round(mini.progress)}%`;$('task-marker').style.left=`${clamp(mini.marker,0,1)*100}%`;
+    const tapTask=mini.type==='movie-search';$('task-safe-zone').style.left=mini.type==='movie-pick'?'4%':'0%';$('task-safe-zone').style.width=mini.type==='movie-pick'?'92%':'100%';
+    const key=kitchenMiniKeyLabel(mini.playerIndex);$('task-control').textContent=activeHere?`${tapTask?'TAP ×3':'HOLD'} ${key}`:'PARTNER TASK';$('task-observer-note').textContent=activeHere?'Finish this tiny task, or move away to cancel it. Your partner stays free.':'You can keep moving. Only your partner is in the close-up.';
+  }
+
+  function updateRainHeldItem(player) {
+    const item=player.rainHeldItem;if(!item)return;const target=player.group.position.clone().addScaledVector(player.facing,.72);
+    target.y=(item===world.rain?.blanketItem ? .58 : item===world.rain?.remoteItem ? .78 : .72);
+    item.group.position.lerp(target,.34);item.group.rotation.y=angleDamp(item.group.rotation.y,Math.atan2(player.facing.x,player.facing.z),9,.016);
+  }
+
+  function updateRain(dt) {
+    const r=world.rain;if(!r)return;
+    updateRainMini(dt);
+    for(const drop of r.rainDrops){drop.position.y-=dt*(2.7+((drop.position.x+10)%3)*.15);drop.position.x-=dt*.18;if(drop.position.y<.72){drop.position.y=3.55;drop.position.x=-4.1+Math.random()*6.2;}}
+    r.fairy.forEach((b,i)=>{if(r.fairyOn)b.scale.setScalar(.86+Math.sin(elapsed*2.2+i)*.15);});
+    r.catPhase+=dt;r.catCalm=Math.max(0,r.catCalm-dt);r.cat.group.position.x=7.0+Math.sin(r.catPhase*.45)*.42*(r.catCalm?0.25:1);r.cat.group.rotation.y=-.8+Math.sin(r.catPhase*.35)*.2;
+    if(r.tvOn){r.tvGlow.intensity=5.2+Math.sin(elapsed*2.6)*.8;r.tvMat.emissiveIntensity=.82+Math.sin(elapsed*2.1)*.08;}
+    updateRainHUD();
+  }
+
+  function finishRainTrial() {
+    if(won||currentLevel!=='rain')return;won=true;gameStarted=false;rainTime=Math.max(.1,elapsed);
+    players[0].group.position.set(3.55,0,1.55);players[1].group.position.set(4.65,0,1.55);players[0].group.rotation.y=players[1].group.rotation.y=Math.PI;
+    spawnBonkParticles(new THREE.Vector3(4.1,1.2,1.8),18);toast(`MOVIE NIGHT READY. ${world.rain?.movieChosen||'QUESTIONABLE CINEMA'} + POPCORN + BLANKET.`);setFluffles('You agreed on entertainment and reached the sofa without filing paperwork. I am alarmed by the progress.');
+    scheduleNetworkFlow('startPartnerQuiz',1100);
+  }
+
+  function showChapterBanner(kicker,name) {
+    const wrap=$('chapter-banner');if(!wrap)return;$('chapter-kicker').textContent=kicker;$('chapter-name').textContent=name;wrap.classList.remove('hidden');requestAnimationFrame(()=>wrap.classList.add('show'));setTimeout(()=>{wrap.classList.remove('show');setTimeout(()=>wrap.classList.add('hidden'),350);},2200);
+  }
+
   function configureDinnerHUD() {
     const track = $('crisis-track');
     track.classList.remove('home-track');
     track.innerHTML = [
       ['1', 'Team Hand-offs'],
       ['2', 'Chef Cooks'],
-      ['3', 'Runner Crisis'],
+      ['3', 'Kitchen Surprise'],
       ['4', 'Serve Together']
     ].map((x, i) => `<div class="crisis-step${i === 0 ? ' active' : ''}" data-step="${i}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
     applyKitchenRolePresentation();
@@ -3014,27 +3718,63 @@
 
   function updateCamera(dt) {
     if (players.length < 2) return;
-    let mid;
-    if (currentLevel === 'sofa' && world.sofa) {
-      const focus = world.arrange?.active && activeHomeItem() ? activeHomeItem().group.position : world.sofa.position;
-      mid = players[0].group.position.clone().add(players[1].group.position).add(focus).multiplyScalar(1 / 3);
-      mid.x *= 0.72;
-      mid.z *= 0.58;
-    } else {
-      mid = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(0.5);
-      mid.x *= 0.48;
-      mid.z *= 0.32;
-    }
-    const desired = new THREE.Vector3(mid.x, currentLevel === 'dinner' ? 12.4 : 18.9, mid.z + (currentLevel === 'dinner' ? 13.35 : 20.4));
-    camera.position.lerp(desired, 1 - Math.exp(-2.8 * dt));
+    let rawFocus;
+    let taskFocus = null;
 
-    if (cameraShake > 0.001) {
+    if (currentLevel === 'sofa' && world.sofa) {
+      const task = world.arrange?.active && activeHomeItem() ? activeHomeItem().group.position : world.sofa.position;
+      rawFocus = players[0].group.position.clone().add(players[1].group.position).add(task).multiplyScalar(1 / 3);
+    } else if (currentLevel === 'dinner') {
+      rawFocus = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(.5);
+      rawFocus.z -= .5;
+    } else if (currentLevel === 'rain') {
+      const r = world.rain;
+      rawFocus = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(.5);
+      if (r) {
+        if (r.stage === 0) taskFocus = r.lamp.position;
+        else if (r.stage === 1 || r.stage === 7) taskFocus = r.sofaPos;
+        else if (r.stage === 2) taskFocus = r.remoteItem.state === 'held' ? new THREE.Vector3(3.5,0,-4.9) : r.remote.position;
+        else if (r.stage === 3) taskFocus = new THREE.Vector3(3.5,0,-4.9);
+        else if (r.stage === 4) taskFocus = r.popper.position;
+        else if (r.stage === 5) taskFocus = r.popcornItem.state === 'held' ? r.tablePos : r.popcornBowl.position;
+        else if (r.stage === 6) taskFocus = r.blanketPlaced ? r.sofaPos : r.blanket.position;
+        if (taskFocus) rawFocus.lerp(taskFocus, .24);
+      }
+    } else {
+      rawFocus = players[0].group.position.clone().add(players[1].group.position).multiplyScalar(.5);
+    }
+
+    // Smooth BOTH camera position and look target. Previously lookAt used the raw
+    // player midpoint every frame, which made the movie chapter visibly jitter.
+    if (cameraFocusLevel !== currentLevel) {
+      cameraFocusSmooth.copy(rawFocus);
+      cameraFocusLevel = currentLevel;
+    } else {
+      cameraFocusSmooth.lerp(rawFocus, 1 - Math.exp(-4.6 * dt));
+    }
+    const focus = cameraFocusSmooth;
+
+    const separation = players[0].group.position.distanceTo(players[1].group.position);
+    const taskSpread = taskFocus ? rawFocus.distanceTo(taskFocus) : 0;
+    const extra = clamp(Math.max((separation - 4) * .28, taskSpread * .10), 0, 3.2);
+    let height = 9.2 + extra * .5;
+    let back = 11.2 + extra;
+    if (currentLevel === 'dinner') { height = 8.4 + extra*.45; back = 10.4 + extra; }
+    if (currentLevel === 'rain') { height = 7.7 + extra*.30; back = 10.0 + extra*.55; }
+
+    const desired = new THREE.Vector3(focus.x + 1.55, height, focus.z + back);
+    camera.position.lerp(desired, 1 - Math.exp(-2.7 * dt));
+
+    // Movie Night is intentionally calm: never carry a random shake impulse into it.
+    if (currentLevel === 'rain') {
+      cameraShake = 0;
+    } else if (cameraShake > 0.001) {
       camera.position.x += (Math.random() - 0.5) * cameraShake;
-      camera.position.y += (Math.random() - 0.5) * cameraShake * 0.5;
+      camera.position.y += (Math.random() - 0.5) * cameraShake * 0.45;
       camera.position.z += (Math.random() - 0.5) * cameraShake;
       cameraShake = damp(cameraShake, 0, 8, dt);
     }
-    camera.lookAt(mid.x, 0.25, mid.z - 0.7);
+    camera.lookAt(focus.x, currentLevel === 'rain' ? .78 : .58, focus.z - (currentLevel === 'rain' ? 1.65 : 1.25));
   }
 
   function updateHUD() {
@@ -3097,7 +3837,7 @@
     quiz.self = [null, null];
     quiz.guess = [null, null];
     gameStarted = false;
-    document.body.classList.remove('kitchen-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode');
     $('story-screen').classList.remove('active');
     $('story-skip-level').classList.add('hidden');
     $('hud').classList.add('hidden');
@@ -3227,49 +3967,33 @@
     if (!players.length) return;
 
     if (currentLevel === 'sofa' && gameStarted && !won) {
-      skippedLevels.add('sofa');
-      gameStarted = false;
-      won = true;
-      for (const p of players) p.release(false);
-      sofaTime = 0;
-      sofaChaos = chaos;
-      toast('ARRANGE OUR HOME SKIPPED. THE FURNITURE HAS BEEN OUTSOURCED TO PROFESSIONALS.');
-      setFluffles('A skip button. Finally, a healthy boundary. Proceed to dinner.');
-      beep(470, .06, .035);
-      setTimeout(showDinnerIntro, 550);
-      return;
+      skippedLevels.add('sofa'); gameStarted=false; won=true; for(const p of players)p.release(false);
+      sofaTime=0;sofaChaos=chaos;toast('HOME ARRANGEMENT SKIPPED. PROFESSIONAL MOVERS HAVE BEEN SUMMONED.');beep(470,.06,.035);
+      setTimeout(showDinnerIntro,450); return;
     }
-
     if (currentLevel === 'dinner' && gameStarted && !won) {
-      skippedLevels.add('dinner');
-      gameStarted = false;
-      won = true;
-      dinnerTime = 0;
-      for (const p of players) if (p.heldItem) dropDinnerItem(p, true);
-      $('hud').classList.add('hidden');
-      document.body.classList.remove('kitchen-mode');
-      toast('DINNER SKIPPED. TAKEOUT HAS ENTERED THE RELATIONSHIP.');
-      beep(470, .06, .035);
-      setTimeout(startPartnerQuiz, 450);
+      skippedLevels.add('dinner');gameStarted=false;won=true;dinnerTime=0;for(const p of players)if(p.heldItem)dropDinnerItem(p,true);
+      $('hud').classList.add('hidden');document.body.classList.remove('kitchen-mode');toast('DINNER SKIPPED. TAKEOUT HAS ENTERED THE RELATIONSHIP. MOVIE NIGHT IS NEXT.');beep(470,.06,.035);
+      setTimeout(showRainIntro,450);return;
+    }
+    if (currentLevel === 'rain' && gameStarted && !won) {
+      skippedLevels.add('rain');gameStarted=false;won=true;rainTime=0;$('hud').classList.add('hidden');document.body.classList.remove('rain-mode');
+      toast('MOVIE NIGHT SKIPPED. THE REMOTE HAS BEEN FORMALLY EXCUSED.');beep(470,.06,.035);setTimeout(startPartnerQuiz,450);
     }
   }
 
   function skipStoryLevel() {
     ensureAudio();
+    $('story-screen').classList.remove('active');
+    $('story-skip-level').classList.add('hidden');
     if (storyMode === 'dinner') {
-      skippedLevels.add('dinner');
-      dinnerTime = 0;
-      $('story-screen').classList.remove('active');
-      $('story-skip-level').classList.add('hidden');
-      startPartnerQuiz();
-      return;
+      skippedLevels.add('dinner'); dinnerTime=0; showRainIntro(); return;
     }
-    // This path is kept for future level-intro cards.
+    if (storyMode === 'rain') {
+      skippedLevels.add('rain'); rainTime=0; startPartnerQuiz(); return;
+    }
     if (storyMode === 'intro') {
-      skippedLevels.add('sofa');
-      sofaTime = 0;
-      $('story-screen').classList.remove('active');
-      showDinnerIntro();
+      skippedLevels.add('sofa'); sofaTime=0; showDinnerIntro();
     }
   }
 
@@ -3285,10 +4009,10 @@
   function finishEpisode() {
     quizActive = false;
     gameStarted = false;
-    document.body.classList.remove('kitchen-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode');
     $('quiz-screen').classList.remove('active');
     $('hud').classList.add('hidden');
-    $('time-score').textContent = formatTime(sofaTime + dinnerTime);
+    $('time-score').textContent = formatTime(sofaTime + dinnerTime + rainTime);
     const avg = Math.round(players.reduce((a, p) => a + p.patience, 0) / players.length);
     $('patience-score').textContent = `${avg}%`;
     $('chaos-score').textContent = Math.round(chaos);
@@ -3299,6 +4023,7 @@
       ? ' Dinner was skipped in favor of the ancient technology known as takeout.'
       : dinnerTime > 0 ? ` You survived dinner in ${formatTime(dinnerTime)}.` : '';
     const sofaNote = skippedLevels.has('sofa') ? ' Arrange Our Home was skipped.' : '';
+    const rainNote = skippedLevels.has('rain') ? ' Movie Night Mayhem was skipped.' : rainTime > 0 ? ` You built a proper movie night around ${world.rain?.movieChosen || 'a suspiciously acceptable film'}.` : '';
     const quizNote = skippedLevels.has('quiz') ? ' The understanding questions were skipped, so no emotional statistics were harmed.' : '';
 
     const understandingText = skippedLevels.has('quiz')
@@ -3310,11 +4035,11 @@
           : understandingScore >= Math.ceil(max * 0.35)
             ? `Love detected. Documentation incomplete.`
             : `The apartment is yours. A follow-up interview has been aggressively recommended.`;
-    $('win-summary').textContent = understandingText + sofaNote + dinnerNote + quizNote;
+    $('win-summary').textContent = understandingText + sofaNote + dinnerNote + rainNote + quizNote;
 
     let grade;
     if (skippedLevels.size) {
-      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Arrange Home' : x === 'dinner' ? 'Dinner' : 'Questions');
+      const labels = [...skippedLevels].map(x => x === 'sofa' ? 'Arrange Home' : x === 'dinner' ? 'Dinner' : x === 'rain' ? 'Movie Night' : 'Questions');
       grade = `custom route · skipped ${labels.join(' + ')}`;
     } else {
       const composite = understandingScore * 8 + avg - Math.min(chaos, 25);
@@ -3342,6 +4067,7 @@
 
   function startGame() {
     ensureAudio();
+    clearMenuPreview();
     const n1 = $('p1-name').value.trim() || 'You';
     const n2 = $('p2-name').value.trim() || 'Her';
     const profiles = pendingProfiles || readLocalProfiles();
@@ -3363,10 +4089,11 @@
     skippedLevels.clear();
     sofaTime = 0;
     dinnerTime = 0;
+    rainTime = 0;
     understandingScore = 0;
     chaos = 0;
     sofaChaos = 0;
-    document.body.classList.remove('kitchen-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode');
     $('p1-label').textContent = n1.toUpperCase();
     $('p2-label').textContent = n2.toUpperCase();
     $('p1-label').classList.remove('role-chef','role-runner');
@@ -3381,13 +4108,11 @@
     quizActive = false;
 
     if (startRoute === 'kitchen') {
-      skippedLevels.add('sofa');
-      sofaTime = 0;
-      showDinnerIntro();
+      skippedLevels.add('sofa'); sofaTime=0; showDinnerIntro();
+    } else if (startRoute === 'rain') {
+      skippedLevels.add('sofa'); skippedLevels.add('dinner'); sofaTime=0; dinnerTime=0; showRainIntro();
     } else if (startRoute === 'quiz') {
-      skippedLevels.add('sofa');
-      skippedLevels.add('dinner');
-      startPartnerQuiz();
+      skippedLevels.add('sofa'); skippedLevels.add('dinner'); skippedLevels.add('rain'); startPartnerQuiz();
     } else {
       showStoryIntro();
     }
@@ -3418,10 +4143,10 @@
 
   function advanceStory() {
     if (storyMode === 'dinner') {
-      $('story-screen').classList.remove('active');
-      $('story-skip-level').classList.add('hidden');
-      startDinnerTrial();
-      return;
+      $('story-screen').classList.remove('active'); $('story-skip-level').classList.add('hidden'); startDinnerTrial(); return;
+    }
+    if (storyMode === 'rain') {
+      $('story-screen').classList.remove('active'); $('story-skip-level').classList.add('hidden'); startRainTrial(); return;
     }
     if (storyIndex < C.story.length - 1) {
       storyIndex += 1;
@@ -3436,7 +4161,8 @@
 
   function startPhysicalTrial() {
     currentLevel = 'sofa';
-    document.body.classList.remove('kitchen-mode');
+    document.body.classList.remove('kitchen-mode','rain-mode');
+    $('chapter-hud').textContent='CHAPTER 1 · OUR NEW HOME';
     players.forEach((p,i) => {
       const badge = p.group.userData.roleBadge;
       if (badge) { p.group.remove(badge); p.group.userData.roleBadge = null; }
@@ -3445,16 +4171,19 @@
     });
     resetGame(false);
     $('kitchen-status').classList.add('hidden');
-    $('action-prompts').classList.add('hidden');
+    $('action-prompts').classList.remove('hidden');
     $('hud').classList.remove('hidden');
+    updateHomeActionCards();
     setFluffles(rand(C.fluffles.intro));
-    toast('TRIAL ONE: ARRANGE OUR HOME. SOFA FIRST — THEN THE REST OF THE FURNITURE.');
+    toast('CHAPTER ONE: ARRANGE OUR HOME. SOFA FIRST — THEN THE REST.');
+    showChapterBanner('CHAPTER ONE','Our New Home');
   }
 
   function resetGame(showToast = true) {
-    if (currentLevel === 'dinner') {
-      resetDinnerLevel(showToast);
-      return;
+    if (currentLevel === 'dinner') { resetDinnerLevel(showToast); return; }
+    if (currentLevel === 'rain') {
+      won=false;gameStarted=true;elapsed=0;setupRainScene();configureRainHUD();$('hud').classList.remove('hidden');
+      if(showToast)toast('RAINY EVENING RESET. THE TEA HAS BEEN UNMADE.');return;
     }
     won = false;
     quizActive = false;
@@ -3508,7 +4237,7 @@
     $('p1-name').value = names[0] || 'You';
     $('p2-name').value = names[1] || 'Her';
     pendingProfiles = Array.isArray(payload.profiles) ? payload.profiles : null;
-    startRoute = ['full', 'kitchen', 'quiz'].includes(payload.route) ? payload.route : 'full';
+    startRoute = ['full', 'kitchen', 'rain', 'quiz'].includes(payload.route) ? payload.route : 'full';
     startGame();
   }
 
@@ -3541,6 +4270,7 @@
       case 'resetGame': if (!quizActive && players.length) resetGame(); break;
       case 'replayEpisode': replayEpisode(); break;
       case 'showDinnerIntro': showDinnerIntro(); break;
+      case 'showRainIntro': showRainIntro(); break;
       case 'startPartnerQuiz': startPartnerQuiz(); break;
       default: console.warn('Unknown network flow action', action, data);
     }
@@ -3562,6 +4292,11 @@
     const d = world.dinner;
     if (currentLevel === 'dinner' && d?.mini?.active && d.mini.playerIndex === 1 && code === 'KeyE') {
       handleKitchenMiniInput(1, down);
+      return;
+    }
+    const r = world.rain;
+    if (currentLevel === 'rain' && r?.mini?.active && r.mini.playerIndex === 1 && code === 'KeyE') {
+      handleRainMiniInput(1, down);
       return;
     }
     const map = {
@@ -3601,6 +4336,10 @@
         grabbing: p.grabbing,
         grabSide: p.grabSide,
         heldItem: p.heldItem?.name || null,
+        homeHeld: p.homeHeldItem?.name || null,
+        homeGrab: p.homeGrabItem?.name || null,
+        homeGrabSide: p.homeGrabSide ?? null,
+        rainHeld: p.rainHeldItem?.name || null,
         knockedMs: Math.max(0, (p.knockedUntil || 0) - performance.now())
       })),
       home: currentLevel === 'sofa' && world.arrange ? {
@@ -3623,6 +4362,7 @@
       cat: world.cat?.group ? networkObjectState(world.cat.group) : null,
       vaseBroken: !!world.vase?.broken,
       dinner: null,
+        rain: null,
       quiz: quizActive ? {
         index: quiz.index,
         phase: quiz.phase,
@@ -3679,7 +4419,17 @@
         cat: d.cat?.group ? networkObjectState(d.cat.group) : null
       };
     }
-    return snap;
+
+    if (currentLevel === 'rain' && world.rain) {
+      const r=world.rain;
+      snap.rain={
+        stage:r.stage,lampOn:r.lampOn,searchDone:r.searchDone,remoteFound:r.remoteFound,tvOn:r.tvOn,movieChosen:r.movieChosen,popcornReady:r.popcornReady,popcornPlaced:r.popcornPlaced,blanketPlaced:r.blanketPlaced,sitReady:[...r.sitReady],fairyOn:r.fairyOn,mini:r.mini?{...r.mini}:null,
+        remote:{state:r.remoteItem.state,p:[r.remote.position.x,r.remote.position.y,r.remote.position.z],ry:r.remote.rotation.y,visible:r.remote.visible,heldBy:r.remoteItem.heldBy?players.indexOf(r.remoteItem.heldBy):-1},
+        popcorn:{state:r.popcornItem.state,p:[r.popcornBowl.position.x,r.popcornBowl.position.y,r.popcornBowl.position.z],ry:r.popcornBowl.rotation.y,heldBy:r.popcornItem.heldBy?players.indexOf(r.popcornItem.heldBy):-1},
+        blanket:{state:r.blanketItem.state,p:[r.blanket.position.x,r.blanket.position.y,r.blanket.position.z],ry:r.blanket.rotation.y,heldBy:r.blanketItem.heldBy?players.indexOf(r.blanketItem.heldBy):-1,scale:[r.blanket.scale.x,r.blanket.scale.y,r.blanket.scale.z]},
+        cat:r.cat?.group?networkObjectState(r.cat.group):null
+      };
+    }    return snap;
   }
 
   function setNetTarget(object, state) {
@@ -3730,6 +4480,7 @@
       p.grabbing = !!ps.grabbing;
       p.grabSide = ps.grabSide;
       if (ps.knockedMs > 40) p.knockedUntil = performance.now() + ps.knockedMs;
+      else { p.knockedUntil = 0; resetPlayerKnockPose(p); }
     });
 
     if (snap.home && world.arrange) {
@@ -3754,6 +4505,15 @@
       } else if (document.querySelectorAll('.crisis-step').length !== world.arrange.items.length + 1) {
         configureSofaTrack();
       }
+      world.arrange.items.forEach(item=>{item.heldBy=null;});
+      snap.players?.forEach((ps,i)=>{
+        const p=players[i]; if(!p)return;
+        p.homeHeldItem=ps.homeHeld?world.arrange.items.find(x=>x.name===ps.homeHeld)||null:null;
+        p.homeGrabItem=ps.homeGrab?world.arrange.items.find(x=>x.name===ps.homeGrab)||null:null;
+        p.homeGrabSide=ps.homeGrabSide??null;
+        if(p.homeHeldItem)p.homeHeldItem.heldBy=p;
+      });
+      updateHomeActionCards();
     }
 
     if (snap.sofa && world.sofa) setNetTarget(world.sofa, snap.sofa);
@@ -3786,7 +4546,9 @@
       d.urgentStage = 0;
       d.chefIndex = sd.chefIndex;
       d.runnerIndex = sd.runnerIndex;
+      const hadDinnerMini=!!d.mini?.active;
       d.mini = sd.mini ? { ...sd.mini } : null;
+      if(hadDinnerMini&&!d.mini)flashTaskSuccess('Task complete ✦');
       if (d.fireGroup) d.fireGroup.visible = !!d.fire;
       if (d.smokeGroup) d.smokeGroup.visible = false;
       if (d.water) {
@@ -3822,6 +4584,21 @@
       updateKitchenHUD();
     }
 
+
+    if (snap.rain && world.rain) {
+      const r=world.rain,sr=snap.rain;
+      r.stage=Number(sr.stage||0);r.lampOn=!!sr.lampOn;r.searchDone=!!sr.searchDone;r.remoteFound=!!sr.remoteFound;r.tvOn=!!sr.tvOn;r.movieChosen=sr.movieChosen||null;r.popcornReady=!!sr.popcornReady;r.popcornPlaced=!!sr.popcornPlaced;r.blanketPlaced=!!sr.blanketPlaced;r.sitReady=new Set(sr.sitReady||[]);r.fairyOn=sr.fairyOn!==false;const hadRainMini=!!r.mini?.active;r.mini=sr.mini?{...sr.mini}:null;if(hadRainMini&&!r.mini)flashTaskSuccess('Movie task complete ✦');
+      r.lampLight.intensity=r.lampOn?12:0;r.tvGlow.intensity=r.tvOn?5.8:0;r.tvLabel.visible=!!(r.tvOn&&!r.movieChosen);r.fairy.forEach(b=>b.visible=r.fairyOn);
+      if(r.tvOn){const colors=r.movieChosen==='ROM-COM'?[0xd98294,0x5a2035]:r.movieChosen==='MYSTERY'?[0x829bc2,0x263c68]:r.movieChosen==='CHAOS COMEDY'?[0xe0ac63,0x62401e]:[0x6079a9,0x21345d];r.tvMat.color.setHex(colors[0]);r.tvMat.emissive.setHex(colors[1]);r.tvMat.emissiveIntensity=.9;}
+      if(sr.remote){r.remoteItem.state=sr.remote.state;r.remoteItem.heldBy=sr.remote.heldBy>=0?players[sr.remote.heldBy]:null;r.remote.visible=!!sr.remote.visible;r.remote.position.set(sr.remote.p[0],sr.remote.p[1],sr.remote.p[2]);r.remote.rotation.y=sr.remote.ry||0;}
+      if(sr.popcorn){r.popcornItem.state=sr.popcorn.state;r.popcornItem.heldBy=sr.popcorn.heldBy>=0?players[sr.popcorn.heldBy]:null;r.popcornBowl.position.set(sr.popcorn.p[0],sr.popcorn.p[1],sr.popcorn.p[2]);r.popcornBowl.rotation.y=sr.popcorn.ry||0;}
+      if(r.popcornReady)spawnMoviePopcorn();
+      if(sr.blanket){r.blanketItem.state=sr.blanket.state;r.blanketItem.heldBy=sr.blanket.heldBy>=0?players[sr.blanket.heldBy]:null;r.blanket.position.set(sr.blanket.p[0],sr.blanket.p[1],sr.blanket.p[2]);r.blanket.rotation.y=sr.blanket.ry||0;if(sr.blanket.scale)r.blanket.scale.set(sr.blanket.scale[0],sr.blanket.scale[1],sr.blanket.scale[2]);}
+      if(sr.cat&&r.cat?.group)setNetTarget(r.cat.group,sr.cat);
+      players.forEach((p,i)=>{const name=snap.players?.[i]?.rainHeld;p.rainHeldItem=name?(name==='BLANKET'?r.blanketItem:name==='REMOTE'?r.remoteItem:name==='POPCORN'?r.popcornItem:null):null;});
+      updateRainHUD();
+    }
+
     syncQuizSnapshot(snap.quiz);
     updateHUD();
   }
@@ -3832,14 +4609,24 @@
       object.position.lerp(object.userData.netTargetPos, 1 - Math.exp(-speed * dt));
       object.rotation.y = angleDamp(object.rotation.y, object.userData.netTargetRot, speed, dt);
     };
-    players.forEach(p => { smoothObject(p.group, 16); updatePlayerFace(p); });
+    players.forEach(p => { smoothObject(p.group, 16); if (performance.now() >= (p.knockedUntil || 0)) resetPlayerKnockPose(p); updatePlayerFace(p); });
     if (currentLevel === 'sofa') {
       smoothObject(world.sofa, 15);
       smoothObject(world.cat?.group, 10);
       for (const item of world.arrange?.items || []) smoothObject(item.group, 13);
-    } else if (world.dinner) {
+      updateHomeActionCards();
+    } else if (currentLevel === 'dinner' && world.dinner) {
       smoothObject(world.dinner.cat?.group, 10);
+    } else if (currentLevel === 'rain' && world.rain) {
+      smoothObject(world.rain.cat?.group,10);
+      smoothObject(world.rain.remote,13);
+      smoothObject(world.rain.popcornBowl,13);
+      smoothObject(world.rain.blanket,13);
+      world.rain.fairy.forEach((b,i)=>{if(world.rain.fairyOn)b.scale.setScalar(.86+Math.sin(elapsed*2.2+i)*.15);});
+      if(world.rain.tvOn){world.rain.tvGlow.intensity=5.2+Math.sin(elapsed*2.6)*.8;world.rain.tvMat.emissiveIntensity=.82+Math.sin(elapsed*2.1)*.08;}
+      for(const drop of world.rain.rainDrops){drop.position.y-=dt*3.0;drop.position.x-=dt*.16;if(drop.position.y<.72){drop.position.y=3.55;drop.position.x=-4.1+Math.random()*6.2;}}
     }
+    players.forEach(p=>updateCarryPose(p));
   }
 
   function applyFx(payload = {}) {
@@ -3863,6 +4650,9 @@
         beep(520, .035, .018);
       });
     });
+    for (const id of ['p1-skin','p1-outfit','p2-skin','p2-outfit','p2-dupatta','p2-sunflower','online-skin','online-outfit','online-dupatta','online-sunflower']) {
+      $(id)?.addEventListener('change', refreshMenuPreview);
+    }
     window.addEventListener('resize', onResize);
 
     window.addEventListener('keydown', (e) => {
@@ -3886,11 +4676,18 @@
         if (e.code === 'KeyR' && players.length && gameStarted) requestFlow('resetGame');
         if (e.code === 'KeyF' && players[1] && (!window.NET?.online || window.NET.playerIndex === 1)) tryCuteSpank(players[1]);
         const d = world.dinner;
+        const r = world.rain;
         let miniHandled = false;
         if (currentLevel === 'dinner' && d?.mini?.active) {
           const activePlayer = players[d.mini.playerIndex];
           if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) {
             handleKitchenMiniInput(d.mini.playerIndex, true);
+            miniHandled = true;
+          }
+        } else if (currentLevel === 'rain' && r?.mini?.active) {
+          const activePlayer = players[r.mini.playerIndex];
+          if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) {
+            handleRainMiniInput(r.mini.playerIndex, true);
             miniHandled = true;
           }
         }
@@ -3905,6 +4702,9 @@
       } else if (currentLevel === 'dinner' && world.dinner?.mini?.active) {
         const activePlayer = players[world.dinner.mini.playerIndex];
         if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) handleKitchenMiniInput(world.dinner.mini.playerIndex, false);
+      } else if (currentLevel === 'rain' && world.rain?.mini?.active) {
+        const activePlayer = players[world.rain.mini.playerIndex];
+        if (activePlayer && bindingHas(activePlayer.controls.grab, e.code)) handleRainMiniInput(world.rain.mini.playerIndex, false);
       }
       keys[e.code] = false;
     });
@@ -3923,7 +4723,7 @@
   }
 
   function beep(freq = 440, dur = 0.06, vol = 0.04) {
-    if (!audioCtx) return;
+    if (window.GAME_SOUND_ENABLED === false || !audioCtx) return;
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.type = 'sine';
     o.frequency.value = freq;
@@ -3959,8 +4759,10 @@
     if (currentLevel === 'sofa') {
       updatePettyDoor(dt);
       updateCat(dt);
-    } else {
+    } else if (currentLevel === 'dinner') {
       updateDinner(dt);
+    } else if (currentLevel === 'rain') {
+      updateRain(dt);
     }
 
     if (gameStarted && !won) {

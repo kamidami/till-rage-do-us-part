@@ -7,17 +7,30 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#160d20" />
-  <title>Till Rage Do Us Part — Home Fix & Relaxed Kitchen</title>
-  <link rel="stylesheet" href="css/style.css?v=1.4.0" />
+  <title>Till Rage Do Us Part — Cozy Interaction Polish 2.2.1</title>
+  <link rel="stylesheet" href="css/style.css?v=2.0.0" />
+  <link rel="stylesheet" href="css/v2.css?v=2.2.0" />
+  <link rel="stylesheet" href="css/v22.css?v=2.2.0" />
+  <link rel="stylesheet" href="css/v221.css?v=2.2.1" />
+  <link rel="stylesheet" href="css/v23.css?v=2.3.2" />
 </head>
 <body>
   <div id="game-shell">
     <canvas id="game-canvas" aria-label="Till Rage Do Us Part 3D game"></canvas>
+    <div id="cinema-vignette" aria-hidden="true"></div>
+    <div id="game-chrome" class="game-chrome">
+      <button id="fullscreen-btn" class="chrome-btn" type="button" title="Fullscreen">⛶ <span>FULLSCREEN</span></button>
+      <button id="sound-btn" class="chrome-btn" type="button" title="Sound">♪ <span>SOUND ON</span></button>
+    </div>
+    <div id="chapter-banner" class="chapter-banner hidden">
+      <small id="chapter-kicker">CHAPTER ONE</small>
+      <strong id="chapter-name">Our New Home</strong>
+    </div>
 
     <div id="hud" class="hidden">
       <div class="hud-top glass">
         <div class="objective-copy">
-          <div class="eyebrow">COMPATIBILITY INSPECTION <span id="crisis-count">1/7</span></div>
+          <div class="eyebrow"><span id="chapter-hud">CHAPTER 1 · OUR NEW HOME</span> <span id="crisis-count">1/7</span></div>
           <div id="objective">1/7 SOFA — carry it through the apartment to the glowing living-room spot.</div>
         </div>
         <div class="hud-actions">
@@ -77,7 +90,7 @@
       </div>
 
       <div id="grab-hint" class="grab-hint hidden">Get close to a gold sofa handle and press your grab key</div>
-      <div class="controls-pill glass">MOVE: WASD / ARROWS &nbsp;•&nbsp; INTERACT: E &nbsp;•&nbsp; HER: F = cute spank &nbsp;•&nbsp; R: Restart</div>
+      <div class="controls-pill glass">WASD / ARROWS · E INTERACT · F BONK ♥ · R RESTART</div>
     </div>
 
     <div id="kitchen-task-screen" class="kitchen-task-screen hidden" aria-live="polite">
@@ -85,8 +98,28 @@
         <div class="task-kicker" id="task-kicker">KITCHEN CLOSE-UP</div>
         <h3 id="task-title">Prep task</h3>
         <p id="task-subtitle">Follow the prompt.</p>
-        <div id="task-visual" class="task-visual">
+        <div id="task-visual" class="task-visual" data-task-type="wash">
+          <div class="task-stage-art" aria-hidden="true">
+            <div class="task-counter"></div>
+            <div class="task-basin"></div>
+            <div class="task-faucet"></div>
+            <div class="task-water-stream"></div>
+            <div class="task-prop" id="task-prop"></div>
+            <div class="task-knife"></div>
+            <div class="task-pot-art"></div>
+            <div class="task-cup-art"></div>
+            <div class="task-kettle-art"></div>
+            <div class="task-spoon-art"></div>
+            <div class="task-plate-art"><i></i><i></i><i></i><i></i></div>
+            <div class="task-steam-art"><i></i><i></i><i></i></div>
+            <div class="task-sofa-art"><i></i><i></i><i></i></div>
+            <div class="task-tv-art"><b>ROM-COM</b><b>MYSTERY</b><b>CHAOS</b></div>
+            <div class="task-remote-art"><i></i><i></i><i></i></div>
+            <div class="task-popcorn-art"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="task-sparkles"><i></i><i></i><i></i><i></i></div>
+          </div>
           <div id="task-emoji" class="task-emoji">🍅</div>
+          <div id="task-feedback" class="task-feedback">Take your time.</div>
           <div class="task-track"><i id="task-safe-zone"></i><b id="task-marker"></b></div>
         </div>
         <div class="task-progress"><div id="task-progress-fill"></div></div>
@@ -113,9 +146,9 @@
     <section id="online-screen" class="overlay active">
       <div class="online-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">ONLINE CO-OP v1.4 · HOME FIX + RELAXED KITCHEN</div>
+        <div class="version-chip">MOVIE NIGHT ORIENTATION FIX · ONLINE CO-OP v2.3.2</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
-        <p class="tagline">Create a private room, customize your characters, then arrange the full apartment together. The first trial now clearly includes every furniture task instead of hiding them behind the sofa.</p>
+        <p class="tagline">A cozy co-op story about making a home, surviving dinner, and building the perfect movie night while a deeply unqualified teddy bear documents everything.</p>
 
         <div id="connection-state" class="connection-state connecting">● Connecting to game server…</div>
 
@@ -155,6 +188,7 @@
             <div class="route-buttons">
               <button class="net-route-btn active" data-route="full">♥ Full Episode</button>
               <button class="net-route-btn" data-route="kitchen">🍳 Kitchen</button>
+              <button class="net-route-btn" data-route="rain">🍿 Movie Night</button>
               <button class="net-route-btn" data-route="quiz">💬 Questions</button>
             </div>
             <button id="online-start-btn" class="primary-btn" disabled>WAITING FOR PARTNER…</button>
@@ -168,9 +202,9 @@
     <section id="start-screen" class="overlay">
       <div class="start-card glass-heavy">
         <div class="tiny-heart">♥</div>
-        <div class="version-chip">WEB BUILD v1.4 · HOME FIX + RELAXED KITCHEN</div>
+        <div class="version-chip">MOVIE NIGHT ORIENTATION FIX · v2.3.2</div>
         <h1>Till Rage<br><span>Do Us Part</span></h1>
-        <p class="tagline">A cursed apartment, one suspicious lease, and a relationship inspection conducted by a teddy bear with no visible qualifications.</p>
+        <p class="tagline">A cozy narrative co-op game about two people turning a suspicious apartment into a home — one tiny domestic disaster at a time.</p>
 
         <div class="name-grid">
           <label><span>Your name</span><input id="p1-name" maxlength="14" value="You" autocomplete="off" /></label>
@@ -192,8 +226,8 @@
         </div>
 
         <div class="mission-box">
-          <strong>Episode 1: The Lease From Hell</strong>
-          <span>Arrange seven home items together: sofa, coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces can crack or break. Then survive the kitchen with relaxed ingredient prep and the same chaotic cooking.</span>
+          <strong>CHAPTER COLLECTION · OUR FIRST NIGHT</strong>
+          <span>Chapter 1: arrange your home. Chapter 2: make dinner. Chapter 3: build a cozy movie night together. Then Dr. Fluffles asks questions nobody authorized.</span>
         </div>
 
         <div class="route-select">
@@ -201,12 +235,13 @@
           <div class="route-buttons">
             <button class="route-btn active" data-route="full">♥ Full Episode</button>
             <button class="route-btn" data-route="kitchen">🍳 Start at Kitchen</button>
-            <button class="route-btn" data-route="quiz">💬 Start at Questions</button>
+            <button class="route-btn" data-route="rain">🍿 Movie Night</button>
+            <button class="route-btn" data-route="quiz">💬 Questions</button>
           </div>
         </div>
 
-        <button id="play-btn" class="primary-btn">SIGN THE TERRIBLE LEASE ♥</button>
-        <p class="micro">Best played together. In the kitchen, ingredient preparation has NO countdown now: wash, chop and hand off at your own pace. The cooking meter only starts judging you after the stove is turned on.</p>
+        <button id="play-btn" class="primary-btn">START OUR FIRST NIGHT ♥</button>
+        <p class="micro">Best experienced in fullscreen with headphones. Ingredient prep stays untimed; interactions focus on tactile little tasks, readable feedback, and cozy co-op moments.</p>
       </div>
     </section>
 
@@ -226,8 +261,8 @@
 
     <section id="quiz-screen" class="overlay">
       <div class="quiz-card glass-heavy">
-        <div class="version-chip">TRIAL THREE · DO YOU ACTUALLY LISTEN?</div>
-        <div class="quiz-topline"><span id="quiz-progress">QUESTION 1 / 8</span><span id="understanding-live">UNDERSTANDING 0 / 16</span></div>
+        <div class="version-chip">FINAL CHECK-IN · DO YOU ACTUALLY LISTEN?</div>
+        <div class="quiz-topline"><span id="quiz-progress">QUESTION 1 / 12</span><span id="understanding-live">UNDERSTANDING 0 / 24</span></div>
         <h2 id="quiz-prompt">Question</h2>
         <p id="quiz-instruction" class="quiz-instruction">Choose your own answer privately.</p>
 
@@ -269,10 +304,10 @@
           <div><span id="time-score">00:00</span><small>TOTAL CO-OP TIME</small></div>
           <div><span id="patience-score">100%</span><small>REMAINING DIGNITY</small></div>
           <div><span id="chaos-score">0</span><small>CHAOS</small></div>
-          <div><span id="understanding-score">0/16</span><small>UNDERSTANDING</small></div>
+          <div><span id="understanding-score">0/24</span><small>UNDERSTANDING</small></div>
         </div>
         <div id="relationship-grade" class="relationship-grade">Compatibility grade: suspiciously healthy</div>
-        <div class="next-episode">NEXT: <strong>Pack For Vacation</strong> — one suitcase, too many opinions, and several items nobody remembers packing.</div>
+        <div class="next-episode">NEXT STORY: <strong>Grocery Run Panic</strong> — one shopping list, two opinions, and Kevin somehow already inside the bag.</div>
         <button id="again-btn" class="primary-btn">REPLAY THE INSPECTION ↻</button>
       </div>
     </section>
@@ -281,9 +316,11 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
-  <script src="js/config.js?v=1.4.0"></script>
-  <script src="js/net.js?v=1.4.0"></script>
-  <script src="js/game.js?v=1.4.0"></script>
-  <script src="js/mobile.js?v=1.4.0"></script>
+  <script src="js/config.js?v=2.3.2"></script>
+  <script src="js/net.js?v=2.3.2"></script>
+  <script src="js/game.js?v=2.3.2"></script>
+  <script src="js/mobile.js?v=2.3.2"></script>
+  <script src="js/v2-polish.js?v=2.3.2"></script>
+  <script src="js/v22-polish.js?v=2.3.2"></script>
 </body>
 </html>

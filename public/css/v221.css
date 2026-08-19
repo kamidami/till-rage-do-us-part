@@ -1,0 +1,66 @@
+/* =============================================================
+   TILL RAGE DO US PART v2.2.1 — STABILITY + HUD HOTFIX
+   Fixes inherited positioning transforms, sticky collision corners,
+   and makes Rainy Tea interactions forgiving and readable.
+   ============================================================= */
+
+/* v2 moved these panels away from center, so clear the old v1
+   left:50% / translateX(-50%) values as well. Without this reset,
+   the panels visually overlap even on wide desktop screens. */
+.hud-top{
+  transform:none!important;
+}
+.patience-wrap{
+  left:auto!important;
+  transform:none!important;
+}
+.action-prompts{
+  left:auto!important;
+  transform:none!important;
+}
+
+/* Keep the top three HUD zones visually independent. */
+@media (min-width:1501px){
+  .hud-top{width:min(460px,31vw)!important}
+  #crisis-track{width:min(610px,36vw)!important}
+  .patience-wrap{width:min(300px,20vw)!important}
+}
+
+/* On common laptop widths, stack the chapter tracker beneath the
+   objective instead of trying to squeeze three blocks into one row. */
+@media (max-width:1500px) and (min-width:761px){
+  .hud-top{width:min(470px,45vw)!important}
+  #crisis-track{top:88px!important;width:min(620px,64vw)!important}
+  .patience-wrap{top:18px!important;right:18px!important;width:min(285px,27vw)!important}
+  .kitchen-status{top:148px!important}
+  body.rain-mode #crisis-track{width:min(620px,64vw)!important}
+}
+
+/* Task panel should never cover the primary objective/recipe region. */
+.kitchen-task-screen{
+  max-height:min(620px,72dvh)!important;
+}
+
+/* Stronger cue that a close-up is an active interaction rather than
+   a modal that froze the game. Movement now cancels it safely. */
+.task-observer-note::after{
+  content:"  •  Move away anytime to cancel";
+  opacity:.72;
+}
+
+/* Rain is deliberately calm: make the active task visibly warmer and
+   suppress unused competitive-looking treatment. */
+body.rain-mode .crisis-step.active{
+  background:rgba(240,200,121,.16)!important;
+  border-color:rgba(240,200,121,.42)!important;
+}
+body.rain-mode .action-card.ready-action{
+  background:rgba(142,213,183,.14)!important;
+  border-color:rgba(142,213,183,.4)!important;
+}
+
+@media(max-width:760px),(pointer:coarse){
+  .hud-top{transform:none!important}
+  .action-prompts{left:auto!important;transform:none!important}
+  .task-observer-note::after{content:" • Move to cancel"}
+}

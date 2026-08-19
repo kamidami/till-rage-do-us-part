@@ -1,15 +1,15 @@
 // =============================================================
-// TILL RAGE DO US PART v1.4 — HOME FIX + RELAXED KITCHEN
+// TILL RAGE DO US PART v2.2.1 — STABILITY HOTFIX
 // Easy-to-edit values live here.
 // =============================================================
 window.GAME_CONFIG = {
   title: "Till Rage Do Us Part",
-  build: "v1.4 Home Fix + Relaxed Kitchen",
+  build: "v2.2.1 Stability Hotfix",
 
-  playerSpeed: 4.45,
+  playerSpeed: 4.15,
   playerRadius: 0.46,
-  normalAcceleration: 13.0,
-  normalStop: 15.0,
+  normalAcceleration: 8.8,
+  normalStop: 10.5,
   rugAcceleration: 4.0,
   rugStop: 2.15,
 
@@ -54,22 +54,22 @@ window.GAME_CONFIG = {
 
   story: [
     {
-      kicker: "11:47 PM · ANNIVERSARY NIGHT",
-      title: "The cheapest apartment in the city.",
+      kicker: "CHAPTER ONE · OUR NEW HOME",
+      title: "The apartment is finally yours.",
       speaker: "Narrator",
-      text: "You two finally move into a suspiciously cute apartment. The rent is low, the lighting is romantic, and the lease has seventeen pages nobody read."
+      text: "Rain taps softly outside while moving boxes fill the entryway. The place is empty, warm, and just a little suspicious."
     },
     {
-      kicker: "11:48 PM · THE FRONT DOOR LOCKS",
-      title: "Clause 13 wakes up.",
+      kicker: "THE FRONT DOOR CLICKS SHUT",
+      title: "Someone is already on the sofa.",
       speaker: "Dr. Fluffles",
-      text: "Congratulations on cohabitation. Before midnight, your lease requires a Compatibility Inspection. Failure means I keep the deposit, the sofa, and possibly the cat."
+      text: "Good evening. I am your landlord, therapist, and entirely self-appointed relationship auditor. Please ignore the clipboard. I drew it myself."
     },
     {
-      kicker: "TRIAL ONE · SHARED DECISIONS",
-      title: "Arrange Our Home",
+      kicker: "FIRST SMALL DOMESTIC CRISIS",
+      title: "Make this place feel like home.",
       speaker: "Dr. Fluffles",
-      text: "This is one full seven-piece home-arrangement trial: sofa, coffee table, bookshelf, rug, lamp, plant and side table. Heavy pieces need both of you; fragile pieces can crack or break. Nothing is secretly postponed behind an old three-step sofa tutorial anymore."
+      text: "Start with the sofa, then arrange the rest of the living room together. Heavy furniture needs both of you. Fragile decor rewards gentle hands and punishes comedy."
     }
   ],
 
@@ -105,6 +105,22 @@ window.GAME_CONFIG = {
     {
       prompt: "When your partner looks stressed, your first instinct is…",
       options: ["Ask what happened", "Give a hug", "Bring food or tea", "Give them quiet space"]
+    },
+    {
+      prompt: "What makes a home feel most like YOUR home?",
+      options: ["Warm lighting", "Good food", "Little personal things", "The right person there"]
+    },
+    {
+      prompt: "If you could pause one ordinary moment together, which would you keep?",
+      options: ["Tea and talking", "Laughing over nothing", "A quiet drive", "Falling asleep together"]
+    },
+    {
+      prompt: "What tiny gesture do you notice more than people think?",
+      options: ["Checking in on me", "Remembering details", "Sharing food", "Physical affection"]
+    },
+    {
+      prompt: "After a chaotic day together, your ideal ending is…",
+      options: ["Talk about it", "Cuddle in silence", "Watch something silly", "Sleep immediately"]
     }
   ],
 

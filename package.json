@@ -1,13 +1,13 @@
 {
   "name": "till-rage-do-us-part-online",
-  "version": "1.4.0",
+  "version": "2.3.2",
   "private": true,
-  "description": "Two-player online co-op couple game \u2014 home arrangement + relaxed kitchen",
+  "description": "Cozy narrative online co-op couple game \u2014 Movie Night blanket pickup and sofa orientation hotfix",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node tests/multiplayer-smoke.js && node tests/v14-regression.js"
+    "test": "node tests/multiplayer-smoke.js && node tests/v23-regression.js && node tests/v231-regression.js && node tests/v232-regression.js"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,106 @@
+/* =============================================================
+   TILL RAGE DO US PART v2.2 — COZY INTERACTION POLISH
+   Game-feel, task feedback, and tactile close-up presentation.
+   ============================================================= */
+:root{
+  --task-cream:#fff0dc;
+  --task-rose:#ef9ab3;
+  --task-sage:#8ed5b7;
+  --task-gold:#f0c879;
+  --task-ink:#2b1c27;
+}
+
+/* Better readable, quieter hierarchy. */
+.hud-top{box-shadow:0 16px 45px rgba(0,0,0,.18)!important}
+.hud-top #objective{max-width:38rem;text-wrap:balance}
+.crisis-step{transition:background .2s ease,border-color .2s ease,transform .2s ease,opacity .2s ease!important}
+.crisis-step.active{transform:translateY(-2px);background:rgba(242,154,176,.15)!important;border-color:rgba(242,154,176,.38)!important}
+.crisis-step.done{opacity:.6}
+.action-card{transition:transform .16s ease,background .16s ease,border-color .16s ease!important}
+.action-card.ready-action{transform:translateY(-2px);background:rgba(240,200,121,.12)!important;border-color:rgba(240,200,121,.35)!important}
+.action-card.ready-action span{color:#fff3da!important}
+body.rain-mode .action-prompts{display:grid!important}
+body.rain-mode #fluffles{background:rgba(21,18,27,.58)!important}
+body.rain-mode #crisis-track{opacity:.92!important}
+body.rain-mode .patience-wrap{opacity:.56!important}
+body.rain-mode #objective{color:#fff5e9!important}
+
+/* Close-up task card now behaves like a tiny tactile game, not a plain progress modal. */
+.kitchen-task-screen{z-index:17!important;width:min(520px,42vw)!important;bottom:28px!important;filter:drop-shadow(0 26px 45px rgba(0,0,0,.28))}
+.task-closeup{padding:16px 17px 14px!important;border-radius:24px!important;background:linear-gradient(160deg,rgba(32,22,31,.94),rgba(20,16,24,.91))!important;border:1px solid rgba(255,255,255,.13)!important;overflow:hidden;position:relative}
+.task-closeup::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 80% 0%,rgba(242,154,176,.12),transparent 34%),radial-gradient(circle at 0% 100%,rgba(142,213,183,.09),transparent 30%)}
+.task-kicker{font-size:.58rem!important;letter-spacing:.18em!important;color:#eac99e!important}
+.task-closeup h3{font-size:clamp(20px,1.8vw,29px)!important;letter-spacing:-.035em!important;margin:3px 0 2px!important}
+.task-closeup p{font-size:11px!important;line-height:1.42!important;color:#d8cbc6!important;margin:0 0 10px!important}
+.task-visual{height:178px!important;border-radius:19px!important;position:relative!important;overflow:hidden!important;background:linear-gradient(180deg,#f5dfcb,#dcae9d)!important;border:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 0 0 1px rgba(74,45,47,.08),0 12px 28px rgba(0,0,0,.13)!important}
+.task-stage-art{position:absolute;inset:0;overflow:hidden}
+.task-counter{position:absolute;left:-8%;right:-8%;bottom:-9px;height:58px;background:#9a6b54;box-shadow:inset 0 7px 0 #c79b7d}
+.task-basin{position:absolute;left:50%;bottom:17px;width:128px;height:44px;transform:translateX(-50%);border-radius:8px 8px 50px 50px;background:#cbd7d8;box-shadow:inset 0 9px 0 #eff6f4,0 4px 10px rgba(0,0,0,.18)}
+.task-faucet{position:absolute;left:50%;top:18px;width:16px;height:47px;border-radius:9px;background:#84999b;transform:translateX(-50%)}
+.task-faucet::after{content:"";position:absolute;left:0;top:0;width:52px;height:14px;border-radius:9px;background:#84999b}
+.task-water-stream{position:absolute;left:calc(50% + 35px);top:29px;width:8px;height:78px;border-radius:999px;background:linear-gradient(#d9fbff,rgba(132,220,242,.4));opacity:0;transform-origin:top;box-shadow:0 0 12px rgba(188,244,255,.55)}
+.task-prop{position:absolute;left:50%;top:76px;width:58px;height:48px;transform:translateX(-50%);border-radius:50% 50% 44% 44%;background:#df625a;box-shadow:inset -9px -8px 0 rgba(92,31,33,.14),0 9px 15px rgba(0,0,0,.16);transition:transform .12s ease,filter .15s ease}
+.task-prop::before{content:"";position:absolute;left:25px;top:-10px;width:8px;height:16px;border-radius:8px;background:#668b5d;transform:rotate(-16deg)}
+.task-knife{position:absolute;left:29%;top:34px;width:16px;height:100px;border-radius:5px;background:linear-gradient(90deg,#b8c2c4,#f9ffff);transform:rotate(24deg);transform-origin:70% 90%;opacity:0;box-shadow:0 5px 8px rgba(0,0,0,.14)}
+.task-knife::after{content:"";position:absolute;left:0;bottom:-32px;width:16px;height:38px;border-radius:5px;background:#5c3b31}
+.task-pot-art{position:absolute;left:50%;bottom:18px;width:116px;height:62px;transform:translateX(-50%);border-radius:10px 10px 45px 45px;background:#68767c;box-shadow:inset 0 8px 0 #aab7b9,0 8px 16px rgba(0,0,0,.19);opacity:0}
+.task-pot-art::before,.task-pot-art::after{content:"";position:absolute;top:15px;width:36px;height:10px;border-radius:999px;background:#505b60}.task-pot-art::before{left:-31px}.task-pot-art::after{right:-31px}
+.task-cup-art{position:absolute;left:50%;bottom:22px;width:72px;height:70px;transform:translateX(-50%);border-radius:7px 7px 23px 23px;background:#e9b2bd;box-shadow:inset 0 -12px 0 rgba(119,62,76,.08),0 8px 14px rgba(0,0,0,.18);opacity:0}
+.task-cup-art::after{content:"";position:absolute;right:-28px;top:17px;width:34px;height:33px;border:9px solid #e9b2bd;border-left:0;border-radius:0 24px 24px 0}
+.task-kettle-art{position:absolute;left:31%;top:30px;width:82px;height:62px;border-radius:48% 48% 38% 38%;background:#97a6a4;box-shadow:inset -10px -9px 0 rgba(47,66,65,.12),0 8px 14px rgba(0,0,0,.16);opacity:0;transform-origin:80% 70%}
+.task-kettle-art::before{content:"";position:absolute;right:-28px;top:18px;border-left:34px solid #97a6a4;border-top:10px solid transparent;border-bottom:12px solid transparent;transform:rotate(-12deg)}
+.task-kettle-art::after{content:"";position:absolute;left:16px;top:-22px;width:48px;height:35px;border:8px solid #677573;border-bottom:0;border-radius:30px 30px 0 0}
+.task-plate-art{position:absolute;left:50%;bottom:24px;width:128px;height:45px;transform:translateX(-50%);border-radius:50%;background:#f4e7d5;box-shadow:inset 0 -7px 0 #d7c0a3,0 8px 14px rgba(0,0,0,.15);opacity:0}
+.task-plate-art i{position:absolute;width:28px;height:28px;border-radius:50%;background:#d9a25f;box-shadow:inset 0 0 0 3px rgba(123,77,38,.12);top:-6px}
+.task-plate-art i::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;background:#7b4d26;left:7px;top:7px;box-shadow:10px 5px 0 #7b4d26,5px 13px 0 #7b4d26}
+.task-plate-art i:nth-child(1){left:9px;transform:rotate(-9deg)}.task-plate-art i:nth-child(2){left:37px;top:-14px;transform:rotate(8deg)}.task-plate-art i:nth-child(3){right:32px;top:-11px;transform:rotate(-5deg)}.task-plate-art i:nth-child(4){right:7px;transform:rotate(12deg)}
+.task-spoon-art{position:absolute;left:50%;top:42px;width:7px;height:91px;border-radius:999px;background:#b9c5c5;transform:translateX(16px) rotate(16deg);transform-origin:bottom;opacity:0}
+.task-spoon-art::before{content:"";position:absolute;left:-5px;top:-11px;width:17px;height:25px;border-radius:50%;background:#dce4e2}
+.task-steam-art{position:absolute;left:50%;top:14px;width:90px;height:55px;transform:translateX(-50%);opacity:0}.task-steam-art i{position:absolute;bottom:0;width:8px;height:44px;border-radius:50%;border-left:5px solid rgba(255,255,255,.58);transform:rotate(13deg);animation:task-steam 1.5s ease-in-out infinite}.task-steam-art i:nth-child(1){left:15px}.task-steam-art i:nth-child(2){left:40px;animation-delay:.25s}.task-steam-art i:nth-child(3){left:65px;animation-delay:.5s}
+.task-sparkles{position:absolute;inset:0;pointer-events:none}.task-sparkles i{position:absolute;width:6px;height:6px;border-radius:50%;background:#fff4b5;opacity:0;box-shadow:0 0 12px #fff4b5}.task-sparkles i:nth-child(1){left:19%;top:28%}.task-sparkles i:nth-child(2){left:77%;top:22%}.task-sparkles i:nth-child(3){left:26%;top:66%}.task-sparkles i:nth-child(4){left:72%;top:68%}
+.task-emoji{position:absolute!important;right:13px!important;top:11px!important;font-size:28px!important;filter:drop-shadow(0 5px 8px rgba(0,0,0,.18));z-index:3}
+.task-feedback{position:absolute;left:12px;top:11px;padding:5px 8px;border-radius:999px;background:rgba(49,30,38,.76);color:#fff0da;font-size:9px;font-weight:900;letter-spacing:.04em;z-index:4;transition:transform .14s ease,background .14s ease}
+.task-feedback.good{background:rgba(61,121,100,.88);transform:scale(1.05)}.task-feedback.miss{background:rgba(163,74,80,.9);transform:translateX(2px)}
+.task-track{position:absolute!important;left:16px!important;right:16px!important;bottom:12px!important;height:11px!important;background:rgba(45,30,36,.26)!important;z-index:5!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.13)!important}
+.task-track i{background:rgba(93,180,139,.45)!important;border-color:rgba(226,255,237,.65)!important}.task-track b{width:9px!important;background:#fff0a8!important;box-shadow:0 0 16px rgba(255,240,168,.95)!important}
+.task-progress{height:8px!important;background:rgba(255,255,255,.07)!important}.task-bottom{font-size:10px!important}.task-bottom strong{background:linear-gradient(#fff5e5,#f1d6b4)!important;color:#2b1c27!important}
+
+/* Task-specific tiny scenes */
+.task-visual[data-task-type="wash"] .task-water-stream,.task-visual[data-task-type="tea-fill"] .task-water-stream{opacity:1;animation:task-water .7s ease-in-out infinite alternate}
+.task-visual[data-task-type="wash"] .task-prop{animation:task-rinse 1.1s ease-in-out infinite}
+.task-visual[data-task-type="chop"] .task-basin,.task-visual[data-task-type="chop"] .task-faucet,.task-visual[data-task-type="chop"] .task-water-stream{opacity:0}.task-visual[data-task-type="chop"] .task-knife{opacity:1;animation:task-chop .52s ease-in-out infinite}.task-visual[data-task-type="chop"] .task-prop{top:94px;transform:translateX(-50%) scale(.88);box-shadow:-24px 0 0 -14px #df625a,24px 0 0 -14px #df625a,0 9px 15px rgba(0,0,0,.14)}
+.task-visual[data-task-type="pour"] .task-basin,.task-visual[data-task-type="pour"] .task-faucet{opacity:0}.task-visual[data-task-type="pour"] .task-pot-art{opacity:1}.task-visual[data-task-type="pour"] .task-prop{top:35px;left:37%;transform:rotate(-22deg);border-radius:10px;background:#d8b36f}
+.task-visual[data-task-type="tea-fill"] .task-prop{top:64px;left:42%;width:70px;height:52px;border-radius:50% 50% 35% 35%;background:#9aa9a8}.task-visual[data-task-type="tea-fill"] .task-prop::before{background:#6d7a7a}
+.task-visual[data-task-type="tea-brew"] .task-basin,.task-visual[data-task-type="tea-brew"] .task-faucet,.task-visual[data-task-type="tea-brew"] .task-prop{opacity:0}.task-visual[data-task-type="tea-brew"] .task-cup-art,.task-visual[data-task-type="tea-brew"] .task-steam-art{opacity:1}
+.task-visual[data-task-type="tea-stir"] .task-basin,.task-visual[data-task-type="tea-stir"] .task-faucet,.task-visual[data-task-type="tea-stir"] .task-prop{opacity:0}.task-visual[data-task-type="tea-stir"] .task-cup-art,.task-visual[data-task-type="tea-stir"] .task-spoon-art,.task-visual[data-task-type="tea-stir"] .task-steam-art{opacity:1}.task-visual[data-task-type="tea-stir"] .task-spoon-art{animation:task-stir .75s ease-in-out infinite}
+.task-visual[data-task-type="tea-pour"] .task-basin,.task-visual[data-task-type="tea-pour"] .task-faucet,.task-visual[data-task-type="tea-pour"] .task-prop{opacity:0}.task-visual[data-task-type="tea-pour"] .task-cup-art,.task-visual[data-task-type="tea-pour"] .task-kettle-art,.task-visual[data-task-type="tea-pour"] .task-steam-art{opacity:1}.task-visual[data-task-type="tea-pour"] .task-kettle-art{animation:task-pour-kettle 1.15s ease-in-out infinite}
+.task-visual[data-task-type="tea-snack"] .task-basin,.task-visual[data-task-type="tea-snack"] .task-faucet,.task-visual[data-task-type="tea-snack"] .task-prop,.task-visual[data-task-type="tea-snack"] .task-track{opacity:0}.task-visual[data-task-type="tea-snack"] .task-plate-art{opacity:1;animation:task-plate-pop 1.2s ease-in-out infinite}.task-visual[data-task-type="tea-snack"] .task-sparkles i{opacity:.75;animation:task-spark 1.2s ease-in-out infinite}
+.task-visual.task-success .task-sparkles i{animation:task-spark .65s ease-out forwards}
+
+@keyframes task-water{from{transform:scaleY(.88);opacity:.65}to{transform:scaleY(1.08);opacity:1}}
+@keyframes task-rinse{0%,100%{transform:translateX(-50%) rotate(-8deg)}50%{transform:translateX(-50%) rotate(9deg) translateY(4px)}}
+@keyframes task-chop{0%,100%{transform:rotate(18deg) translateY(-8px)}50%{transform:rotate(26deg) translateY(12px)}}
+@keyframes task-stir{0%,100%{transform:translateX(16px) rotate(12deg)}50%{transform:translateX(-15px) rotate(-13deg)}}
+@keyframes task-steam{0%{transform:translateY(12px) scale(.8);opacity:.15}60%{opacity:.65}100%{transform:translateY(-8px) scale(1.05);opacity:0}}
+@keyframes task-spark{0%{opacity:0;transform:scale(.3)}35%{opacity:1}100%{opacity:0;transform:translateY(-24px) scale(1.5)}}
+
+/* Menu polish: fewer choices, clearer story route. */
+.route-select>span,.host-start-controls>span{display:block;margin-bottom:8px;font-size:.62rem;letter-spacing:.14em;color:#dac5b5;font-weight:900}
+.version-chip{letter-spacing:.12em!important}
+
+@media(max-width:760px),(pointer:coarse){
+  .kitchen-task-screen,.kitchen-task-screen.active-player{left:50%!important;bottom:150px!important;width:calc(100vw - 28px)!important;transform:translateX(-50%)!important}
+  .kitchen-task-screen.spectator{left:10px!important;bottom:158px!important;width:240px!important;transform:none!important}
+  .task-visual{height:145px!important}.task-closeup{padding:12px 13px!important}.task-closeup h3{font-size:18px!important}.task-closeup p{font-size:9px!important}
+}
+@media(max-height:650px) and (orientation:landscape){
+  .kitchen-task-screen,.kitchen-task-screen.active-player{bottom:12px!important;width:min(470px,46vw)!important}.task-visual{height:120px!important}.task-closeup{padding:9px 11px!important}.task-closeup h3{font-size:17px!important}.task-closeup p{display:none}.task-progress{margin-top:6px!important}
+}
+
+@keyframes task-pour-kettle{0%,100%{transform:rotate(-6deg) translateY(0)}50%{transform:rotate(24deg) translateY(4px)}}
+@keyframes task-plate-pop{0%,100%{transform:translateX(-50%) scale(.96)}50%{transform:translateX(-50%) scale(1.03)}}
+
+/* Home chapter uses the same contextual UX language as the kitchen and tea chapter. */
+body:not(.kitchen-mode):not(.rain-mode) .action-prompts{display:grid!important}
+body:not(.kitchen-mode):not(.rain-mode) .action-card{background:rgba(28,20,28,.58)!important}
+body:not(.kitchen-mode):not(.rain-mode) .action-card.ready-action{background:rgba(240,200,121,.14)!important;box-shadow:0 10px 26px rgba(0,0,0,.12)}
